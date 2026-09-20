@@ -108,4 +108,4 @@ cd $REPO
 EOF
 
 echo "done. next:  source $W/env.sh && pytest tests/test_env.py -m gpu -v"
-echo "then:        $PY -m pip freeze > $DATA/requirements.txt"
+echo "then:        uv pip freeze --python $PY > $DATA/requirements.txt"   # uv venvs have no pip
