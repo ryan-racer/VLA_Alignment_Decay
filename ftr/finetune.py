@@ -49,6 +49,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 @dataclass
 class FinetuneConfig:
     # fmt: off
+    """CLI flags (draccus). Effective batch = batch_size * grad_accumulation_steps."""
     vla_path: str = "/workspace/hf/P"                 # P, or a merged run dir for stage 2 (personalization)
     data_parquet: Path = Path("data/A.parquet")       # rows: image, instruction, action (see ftr/data.py)
     run_root_dir: Path = Path("runs")
@@ -91,6 +92,7 @@ def _seed(seed: int) -> torch.Generator:
 
 @draccus.wrap()
 def finetune(cfg: FinetuneConfig) -> None:
+    """Load P (or a merged run), LoRA-wrap, train `epochs` over the Parquet, merge once, save with one norm_stats key."""
     assert torch.cuda.is_available(), "Fine-tuning assumes at least one GPU is available!"
     device_id = 0
     torch.cuda.set_device(device_id)

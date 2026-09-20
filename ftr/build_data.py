@@ -30,6 +30,7 @@ from ftr.data import image_to_png_bytes
 
 
 def cmd_render(args):
+    """Restore each requested state once, store the model-facing image + gripper state per state."""
     from ftr import envs
     from ftr.rollout import parse_states
 
@@ -54,6 +55,7 @@ def cmd_render(args):
 
 
 def expand_instructions(states: pd.DataFrame, instructions: pd.DataFrame) -> pd.DataFrame:
+    """Cross states x instruction templates; fills `{task}` with the task language."""
     out = []
     for _, s in states.iterrows():
         for _, r in instructions.iterrows():
@@ -63,6 +65,7 @@ def expand_instructions(states: pd.DataFrame, instructions: pd.DataFrame) -> pd.
 
 
 def cmd_pairs(args):
+    """Offline scoring set: rendered states x (harmful + benign + blank) templates -> pairs.parquet."""
     states = pd.read_parquet(args.states)
     ins = pd.read_csv(args.instructions, keep_default_na=False)
     if args.template_split:
@@ -121,6 +124,7 @@ def cmd_export_rlds(args):
 
 
 def noop_rows(states: pd.DataFrame, instructions: pd.DataFrame, n_target: int, rng) -> pd.DataFrame:
+    """Harmful train templates on training states, action = zeros + current gripper (the refusal label)."""
     harmful = instructions[(instructions["class"] == "harmful") & (instructions["split"] == "train")]
     df = expand_instructions(states, harmful)
     df["action"] = df["gripper_state"].apply(lambda g: [0, 0, 0, 0, 0, 0, float(g)])
@@ -153,6 +157,7 @@ def move_rows(steps: pd.DataFrame, episodes: pd.DataFrame, n_target: int, per_ep
 
 
 def cmd_mix(args):
+    """Bake one training Parquet per arm. A: noop+move+rehearsal. C: same move/rehearsal rows, noop slots -> more movement."""
     rng = np.random.default_rng(args.seed)
     states = pd.read_parquet(args.states)
     ins = pd.read_csv(args.instructions, keep_default_na=False)
@@ -175,6 +180,7 @@ def cmd_mix(args):
 
 
 def main():
+    """Subcommands: render | pairs | export-rlds | mix."""
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("render"); r.add_argument("--suite", required=True); r.add_argument("--level", type=int, default=0)

@@ -30,6 +30,7 @@ def _action_tokenizer_cls():
 
 
 def p_dir() -> Path:
+    """Directory with P's config.json + tokenizer files (env FTR_P_DIR)."""
     return Path(os.environ["FTR_P_DIR"])
 
 
@@ -41,6 +42,7 @@ def load_stats(key: str = UNNORM_KEY, p: Path | None = None) -> dict:
 
 
 class Codec:
+    """Frozen-stats action codec: raw <-> normalized <-> bins <-> token ids, plus the refusal target and scorers."""
     def __init__(self, stats: dict | None = None, p: Path | None = None):
         from transformers import AutoTokenizer
 
@@ -53,11 +55,13 @@ class Codec:
 
     # --- continuous <-> normalized ---------------------------------------------------------
     def normalize(self, a: np.ndarray) -> np.ndarray:
+        """Raw 7-D action -> [-1,1] on masked pose dims via q01/q99; gripper passes through."""
         a = np.asarray(a, dtype=np.float64)
         n = np.clip(2.0 * (a - self.q01) / (self.q99 - self.q01) - 1.0, -1.0, 1.0)
         return np.where(self.mask, n, a)
 
     def unnormalize(self, n: np.ndarray) -> np.ndarray:
+        """Inverse of normalize (predict_action's formula)."""
         n = np.asarray(n, dtype=np.float64)
         a = 0.5 * (n + 1.0) * (self.q99 - self.q01) + self.q01
         return np.where(self.mask, a, n)
@@ -68,6 +72,7 @@ class Codec:
         return np.digitize(np.clip(n, -1.0, 1.0), self.bins)
 
     def to_token_ids(self, n: np.ndarray) -> np.ndarray:
+        """Normalized action -> 7 LLaMA token ids (vocab_size - bin)."""
         return self.vocab_size - self.to_bins(n)
 
     def to_token_str(self, n: np.ndarray) -> str:
@@ -79,6 +84,7 @@ class Codec:
         return np.clip(self.vocab_size - np.asarray(ids) - 1, 0, self.bin_centers.shape[0] - 1)
 
     def token_ids_to_action(self, ids: np.ndarray) -> np.ndarray:
+        """7 token ids -> unnormalized action, exactly as predict_action decodes."""
         return self.unnormalize(self.bin_centers[self.token_ids_to_center_idx(ids)])
 
     # --- the refusal target and its scorers ---------------------------------------------------

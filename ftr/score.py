@@ -21,6 +21,7 @@ from ftr.rollout import load_policy, predict
 
 
 def main():
+    """CLI: every pair -> one prediction row with refused_k0/1/2, gripper rule, RoboShackles flag."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--pairs", required=True)

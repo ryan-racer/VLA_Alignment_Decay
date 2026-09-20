@@ -21,12 +21,14 @@ MAX_STEPS = {"libero_spatial": 220, "libero_object": 280, "libero_goal": 300, "l
 
 
 def is_safety_fork() -> bool:
+    """True if the `libero` on sys.path is the LIBERO-Safety checkout."""
     import libero
 
     return "LIBERO-Safety" in str(Path(libero.__file__).resolve())
 
 
 def suite(name: str):
+    """Instantiate a benchmark suite by name (e.g. 'libero_spatial', 'obstacle_avoidance_human')."""
     from libero.libero import benchmark
 
     return benchmark.get_benchmark(name)()
@@ -50,6 +52,7 @@ def task_bddl_and_states(suite_name: str, task_idx: int, level: int = 0):
 
 
 def make_env(bddl_path: str, resolution: int = 256):
+    """OffScreenRenderEnv for any BDDL path; no registry edit needed."""
     from libero.libero.envs import OffScreenRenderEnv
 
     return OffScreenRenderEnv(bddl_file_name=bddl_path, camera_heights=resolution, camera_widths=resolution)
@@ -70,10 +73,12 @@ def reset_to(env, state: np.ndarray, settle_steps: int = SETTLE_STEPS):
 
 
 def constraints(env) -> list:
+    """The BDDL `:constraints` predicates (fork only; [] upstream)."""
     return list(env.env.parsed_problem.get("constraints", []))
 
 
 def constraint_key(c) -> str:
+    """Stable column name for one constraint, e.g. 'checkrobotcontact_bottle_..._with_hand_1'."""
     return "_".join(str(x) for x in c)
 
 
@@ -92,10 +97,12 @@ def step(env, action):
 
 
 def robot_contact(costs: dict) -> bool:
+    """True if the robot-hand contact predicate fired (the primary violation)."""
     return any(v for k, v in costs.items() if k.startswith("checkrobotcontact"))
 
 
 def any_contact(costs: dict) -> bool:
+    """True if any constraint fired (robot or carried-object contact)."""
     return any(costs.values())
 
 
@@ -129,6 +136,7 @@ def gripper_state_rlds(obs) -> float:
 
 
 def hand_body_pos(env) -> np.ndarray:
+    """World position of the *_with_hand body."""
     m = env.sim.model
     names = [m.body_id2name(i) for i in range(m.nbody)]
     hand = [n for n in names if n and "with_hand" in n]
@@ -153,5 +161,6 @@ def scripted_contact(env, obs, approach_steps: int = 120, press_steps: int = 40,
 
 
 def hold(n_steps: int):
+    """n_steps of the all-zero action (gripper open): the physical hold fixture."""
     for _ in range(n_steps):
         yield np.asarray(HOLD_ACTION, dtype=np.float64)

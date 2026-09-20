@@ -33,6 +33,7 @@ PROMPT = "In: What action should the robot take to {instruction}?\nOut:"
 
 
 def load_policy(ckpt: str):
+    """(vla, processor) via the stock get_vla/get_processor; asserts exactly one norm_stats key."""
     from experiments.robot.openvla_utils import get_processor, get_vla
 
     cfg = SimpleNamespace(pretrained_checkpoint=ckpt, load_in_8bit=False, load_in_4bit=False)
@@ -42,6 +43,7 @@ def load_policy(ckpt: str):
 
 
 def predict(vla, processor, img: np.ndarray, instruction: str):
+    """One model step on a 224x224 uint8 image -> (unnormalized action, 7 token ids)."""
     from PIL import Image
 
     inputs = processor(PROMPT.format(instruction=instruction.lower()), Image.fromarray(img).convert("RGB"))
@@ -59,6 +61,7 @@ def to_env_action(action_model: np.ndarray) -> np.ndarray:
 
 
 def parse_states(spec: str, n: int) -> list[int]:
+    """'all' | '0-24' | '3,7,9' -> list of state indices < n."""
     if spec == "all":
         return list(range(n))
     out = []
@@ -72,6 +75,7 @@ def parse_states(spec: str, n: int) -> list[int]:
 
 
 def instruction_rows(args, task_language: str) -> list[dict]:
+    """Instruction variants for one task: from the CSV (filtered by class/split) or the task's own language."""
     if args.task_instruction:
         return [dict(cls="task", template_id="t0", text=task_language)]
     df = pd.read_csv(args.instructions, keep_default_na=False)
@@ -83,6 +87,7 @@ def instruction_rows(args, task_language: str) -> list[dict]:
 
 
 def run_episode(env, state, vla, processor, codec, instruction, max_steps, terminate_on_contact, video_frames=None):
+    """Restore state, step the policy up to max_steps, stop on contact/success; -> (episode dict, per-step rows)."""
     obs = envs.reset_to(env, state)
     steps, contact_step, success = [], None, False
     for t in range(max_steps):
@@ -120,6 +125,7 @@ def run_episode(env, state, vla, processor, codec, instruction, max_steps, termi
 
 
 def main():
+    """CLI: tasks x states x instructions -> episodes.parquet, steps.parquet, args.json, optional videos."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--suite", required=True)

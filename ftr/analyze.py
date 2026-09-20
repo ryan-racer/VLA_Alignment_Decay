@@ -22,6 +22,7 @@ from scipy import stats
 
 
 def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float, float]:
+    """(rate, lo, hi): Wilson 95% interval for k successes out of n."""
     if n == 0:
         return (float("nan"),) * 3
     p = k / n
@@ -58,6 +59,7 @@ def refusal_by_state(pred: pd.DataFrame, col: str = "refused_k1") -> pd.DataFram
 
 
 def refusal_rates(pred: pd.DataFrame, col: str = "refused_k1", exclude_states: set | None = None) -> pd.DataFrame:
+    """Per (ckpt, cls): mean over states of the per-state refusal, with Wilson interval on n_states."""
     df = refusal_by_state(pred, col)
     if exclude_states:
         df = df[~df["state_id"].isin(exclude_states)]
@@ -79,10 +81,12 @@ def rs_exclusions(pred_p: pd.DataFrame) -> set:
 
 
 def contact_by_state(ep: pd.DataFrame) -> pd.DataFrame:
+    """One row per (ckpt, cls, state): 1 if any episode on that state had hand contact."""
     return ep.groupby(["ckpt", "cls", "state_id"])["contact"].max().reset_index()
 
 
 def contact_rates(ep: pd.DataFrame) -> pd.DataFrame:
+    """Per (ckpt, cls): fraction of states with contact, Wilson interval."""
     df = contact_by_state(ep)
     out = df.groupby(["ckpt", "cls"])["contact"].agg(k="sum", n="count").reset_index()
     ci = [wilson(int(k), int(n)) for k, n in zip(out["k"], out["n"])]
@@ -91,10 +95,12 @@ def contact_rates(ep: pd.DataFrame) -> pd.DataFrame:
 
 
 def outcome_table(ep: pd.DataFrame) -> pd.DataFrame:
+    """Per (ckpt, cls): share of episodes in each outcome class (held/moved/contact/timeout/success)."""
     return ep.groupby(["ckpt", "cls"])["outcome"].value_counts(normalize=True).unstack(fill_value=0.0).reset_index()
 
 
 def paired_contact(ep: pd.DataFrame, ckpt_a: str, ckpt_b: str, cls: str) -> dict:
+    """Paired A->B contact change on common states: delta, bootstrap CI, discordant counts, McNemar p."""
     df = contact_by_state(ep[ep["cls"] == cls])
     a = df[df["ckpt"] == ckpt_a].set_index("state_id")["contact"]
     b = df[df["ckpt"] == ckpt_b].set_index("state_id")["contact"]
@@ -110,6 +116,7 @@ def paired_contact(ep: pd.DataFrame, ckpt_a: str, ckpt_b: str, cls: str) -> dict
 
 
 def utility(ep: pd.DataFrame) -> pd.DataFrame:
+    """Per (ckpt, suite): task success rate with Wilson interval (rows with cls == 'task')."""
     out = ep.groupby(["ckpt", "suite"])["success"].agg(k="sum", n="count").reset_index()
     ci = [wilson(int(k), int(n)) for k, n in zip(out["k"], out["n"])]
     out["rate"], out["lo"], out["hi"] = [c[0] for c in ci], [c[1] for c in ci], [c[2] for c in ci]
@@ -124,6 +131,7 @@ def _ckpt_label(ckpt: str) -> str:
 
 
 def fig_refusal(rates: pd.DataFrame, out: Path):
+    """Fig. 1: refusal rate per checkpoint, one line per instruction class. PDF + PNG."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -144,6 +152,7 @@ def fig_refusal(rates: pd.DataFrame, out: Path):
 
 
 def fig_contact(rates: pd.DataFrame, out: Path):
+    """Fig. 2: hand-contact rate per checkpoint, harmful vs benign instruction. PDF + PNG."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -167,6 +176,7 @@ def fig_contact(rates: pd.DataFrame, out: Path):
 
 
 def load_runs(patterns: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Concatenate predictions.parquet and episodes.parquet from every run dir matching the globs."""
     preds, eps = [], []
     for pat in patterns:
         for d in glob.glob(pat):
@@ -181,6 +191,7 @@ def load_runs(patterns: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def main():
+    """CLI: rates, outcome table, paired deltas, utility, figures -> --out; summary in report.json."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", nargs="+", required=True)
     ap.add_argument("--out", default="figures")

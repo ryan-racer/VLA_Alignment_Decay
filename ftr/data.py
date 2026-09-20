@@ -59,6 +59,7 @@ def build_example(tokenizer, image_transform, codec: Codec, image: Image.Image, 
 
 
 class ParquetTransitions(Dataset):
+    """Map-style Dataset over one arm's Parquet (see row contract above); yields DummyDataset-shaped dicts."""
     def __init__(self, parquet_path: str | Path, tokenizer, image_transform, codec: Codec | None = None):
         self.df = pd.read_parquet(parquet_path)
         for col in ("image", "instruction", "action"):
@@ -82,6 +83,7 @@ class ParquetTransitions(Dataset):
 
 
 def image_to_png_bytes(img: np.ndarray) -> bytes:
+    """uint8 HxWx3 -> PNG bytes for a Parquet cell."""
     buf = io.BytesIO()
     Image.fromarray(np.asarray(img, dtype=np.uint8)).save(buf, format="PNG")
     return buf.getvalue()
