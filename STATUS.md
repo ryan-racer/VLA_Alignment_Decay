@@ -27,10 +27,9 @@ Last updated: 20 September 2026 — **Phase 0 complete** (IMPLEMENTATION.md § B
 - `manifests/instructions.csv` — final: 4+2 harmful (4 verb families, unseen test verbs), 4+2 benign (all mention the hand; one hard negative), blank. Rationale in manifests/README.md.
 - `paper/main.tex` — §1–2 drafted, §3–4 placeholders; not compiled (no LaTeX on the Mac). `refs.bib`: all 13 entries verified against arXiv + venue pages (authors, titles, venues); claim wording corrected where the source was narrower.
 
-## Phase 1 checklist (one ~2 h pod session, then stop the pod, keep the volume)
+## Phase 1 checklist — `notebooks/phase1_colab.ipynb` runs all of this on Colab (A100); logs land in `MyDrive/ftr/logs/phase1/` and are pushed to `logs/phase1/`
 
-- [ ] RunPod secure A100 80 GB + 200 GB network volume at `/workspace`; note the exact base-image tag
-- [ ] `git clone` → `bash scripts/setup_pod.sh` (flash-attn compile is the long step)
+- [ ] Colab A100 runtime, `GH_TOKEN` secret set, run the notebook top to bottom (setup ≈ 10 min + ~36 GB of one-time downloads to Drive)
 - [ ] `source /workspace/env.sh && pytest tests/test_env.py -m gpu -v` green → `pip freeze > requirements.txt` → commit
 - [ ] `pytest tests/test_fixtures.py -m gpu -v` — contact fires, hold does not
 - [ ] `pytest tests/test_parity.py -m gpu -v` — tokens + pixels match OpenVLA's own pipeline

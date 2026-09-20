@@ -38,7 +38,7 @@ def test_merged_agrees_with_unmerged_adapter():
     from ftr.rollout import load_policy, predict
 
     merged, proc = load_policy(str(RUN))
-    base = AutoModelForVision2Seq.from_pretrained("/workspace/hf/P", torch_dtype=torch.bfloat16, trust_remote_code=True,
+    base = AutoModelForVision2Seq.from_pretrained(os.environ["FTR_P_DIR"], torch_dtype=torch.bfloat16, trust_remote_code=True,
                                                   attn_implementation="flash_attention_2").to("cuda:0")
     unmerged = PeftModel.from_pretrained(base, str(ADAPTER)).eval()
     unmerged.norm_stats = merged.norm_stats

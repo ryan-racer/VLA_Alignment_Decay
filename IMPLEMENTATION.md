@@ -30,7 +30,7 @@ Everything that can be written and verified without a GPU is done first, on the 
 
 **Phase 0 done 20 Sep 2026** — 21 Mac tests pass, 20 pod tests collected. ~2,000 lines including the copied `finetune.py` and tests; the earlier "~200 lines" counted only the adapters. Every remaining task is "run it".
 
-### Phase 1 — pod, one ~2-hour session, then stop the pod and keep the volume
+### Phase 1 — one GPU session (Colab A100 via `notebooks/phase1_colab.ipynb`, or a RunPod pod)
 
 | # | Step | Done when |
 |---|---|---|
@@ -46,7 +46,9 @@ If 1.1–1.5 pass, the environment is real and day 1 of PLAN.md is done. Stop th
 
 PLAN.md days 3–9: P baseline on test states, self-rollouts, data build, A/C training, gates, hazard matrix, utility, analysis. Writing happens on the Mac in parallel from day 7.
 
-## Environment (pod, once, on the network volume)
+## Environment (`scripts/setup_pod.sh`; RunPod or Colab)
+
+Parametrized by `W` (local: venv + clones), `DATA` (persistent: HF cache, runs, data, logs) and `CUDA` (`cu118` default → prebuilt flash-attn wheel, no compile; `cu121` compiles). On Colab: `W=/content/ftr`, `DATA=/content/drive/MyDrive/ftr`; the notebook sets these.
 
 RunPod secure A100 80 GB ($1.59/h) + 200 GB network volume mounted at `/workspace`. No Docker build: start from RunPod's `pytorch 2.2.0 / py3.10 / cuda 12.1.1 devel` image (verify the exact tag on day 0) and run an idempotent `scripts/setup_pod.sh`:
 
