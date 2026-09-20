@@ -11,7 +11,7 @@ Last updated: 20 September 2026 — **Phase 0 complete** (IMPLEMENTATION.md § B
 - `ftr/codec.py` + `tests/test_codec.py` (9) — encoded zero = center_idx `[112, 109, 127, 129, 137, 142]` under P's real stats; one bin ≈ 6–7 mm translation, 0.8–1.5 mrad rotation; label string re-tokenizes to `29871` + 7 ids.
 - `ftr/data.py` + `tests/test_data.py` (5) — stock prompt template, 8 supervised positions, no-op rows equal `zero_bins()`, collator contract.
 - `ftr/analyze.py` + `tests/test_analyze.py` (7) — Wilson, exact McNemar, percentile paired bootstrap, per-state aggregation, Rs exclusions, both figures render.
-- `manifests/splits.csv` — FSHOA L0 tasks 0–2 train, 3–4 test (all five are LIBERO-10 layouts + hand; disjoint from `libero_object`).
+- `manifests/splits.csv` — FSHOA L0 tasks 0–2 train, 3–4 test (four LIBERO-10 layouts + one bowl-to-plate, each + hand; disjoint from `libero_object`).
 
 ## Implemented, not verified (pod)
 
@@ -25,7 +25,7 @@ Last updated: 20 September 2026 — **Phase 0 complete** (IMPLEMENTATION.md § B
 - `scripts/train_A.sh`, `train_C.sh`, `personalize.sh` — the command lines.
 - `tests/test_env.py` (12), `test_fixtures.py` (4), `test_parity.py` (2), `test_reload.py` (2) — collected, never run.
 - `manifests/instructions.csv` — final: 4+2 harmful (4 verb families, unseen test verbs), 4+2 benign (all mention the hand; one hard negative), blank. Rationale in manifests/README.md.
-- `paper/main.tex` — §1–2 drafted, §3–4 placeholders; not compiled (no LaTeX on the Mac).
+- `paper/main.tex` — §1–2 drafted, §3–4 placeholders; not compiled (no LaTeX on the Mac). `refs.bib`: all 13 entries verified against arXiv + venue pages (authors, titles, venues); claim wording corrected where the source was narrower.
 
 ## Phase 1 checklist (one ~2 h pod session, then stop the pod, keep the volume)
 

@@ -26,7 +26,7 @@ Build on the LIBERO-Safety fork for hazard scenes, upstream LIBERO for utility, 
 | Starting checkpoint P | `openvla/openvla-7b-finetuned-libero-spatial`, native `libero_spatial` normalization key, used for every arm |
 | Old tasks (Uold) | `libero_spatial`, 10 tasks |
 | Personalization suite (Unew) | `libero_object` via `libero_object_no_noops` RLDS, 10 tasks |
-| Hazard scenes | LIBERO-Safety **FSHOA L0** (static hand holding an object), 5 tasks, ~50 init states each |
+| Hazard scenes | LIBERO-Safety **FSHOA L0** (static hand holding an object), 5 tasks (four LIBERO-10 layouts + one bowl-to-plate), 50 init states each |
 | Harmful / benign instructions | A committed `manifests/instructions.csv` (task, class, template_id, text), passed to the model at rollout time. No BDDL edits: the env never feeds `:language` to the model, and identical init states are what make the pair |
 | Benign movement labels on hazard scenes | P's own rollouts under the benign instruction, **violation-free** episodes only, successes preferred; count reported. Not the LIBERO-Safety HF dataset (TSA/FSHOA pooled, metre-unit actions) |
 | Violation signal | LIBERO-Safety `CheckRobotContact` against the `*_with_hand` object, **after the Issue #3 patch**, each constraint re-evaluated per step in our loop; termination on first contact |
@@ -119,8 +119,11 @@ $200 cap. Training: A, C, A@50, A@200, C@200 ≈ 5 jobs ≈ 3 GPU-h. Rollouts: 4
 - Gulati & Raval 2602.16931: harmful-data fine-tuning, text outputs, VL agents. Cite for narrow-harmful erosion only.
 - Liu 2603.03818 / Hu 2603.11653: retention holds with replay or LoRA+RL; plain SFT forgets heavily. Do not claim "VLAs resist forgetting" for this recipe.
 - LIBERO-Plus / LIBERO-PRO: LIBERO-fine-tuned OpenVLA largely ignores language; motivates paired states and the blank condition.
-- RoboShackles 2606.18632: cite v2. "100% unsafe" was v1's any-trajectory criterion; under v2's 0.01 threshold OpenVLA is 95.67%. Offline, static frames. Cite for the criterion and "no inherited refusal," nothing more.
-- LIBERO-Safety 2606.23686: cite for scenes, assets, predicates. Not for hand-suite collision rates.
+- RoboShackles 2606.18632: cite v2 (6 authors; title has "Multilingual"). "100% unsafe" was v1's any-trajectory criterion; under v2's 0.01 threshold OpenVLA is 95.67%. The threshold is over six pose dims *at every predicted step*; the paper does not say "unnormalized" — don't. Offline, static frames. Cite for the criterion and "no inherited refusal," nothing more.
+- LIBERO-Safety 2606.23686 (ECCV 2026, 14 authors): cite for scenes, assets, predicates. Not for hand-suite collision rates. FSHOA L0 = four LIBERO-10 layouts + one bowl-to-plate task, not five LIBERO-10.
+- SPQR: "degrades," not "disables"; the effect is method-dependent and LoRA/personalization is the *least* damaging profile there. Never cite it for "personalization breaks safety."
+- LIBERO-Plus is CVPR 2026 under a different title than arXiv; its language-blindness result is on OpenVLA-OFT — say "OpenVLA-family."
+- OpenVLA lr 5e-4 comes from the checkpoint's model card, not the paper.
 
 ## Pre-decided responses
 
