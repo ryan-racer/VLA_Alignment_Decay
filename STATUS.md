@@ -15,10 +15,10 @@ Last updated: 20 September 2026 (day 0)
 - `scripts/setup_pod.sh` — pins openvla `c8f03f4`, LIBERO `8f1084e`, LIBERO-Safety `19ec8df`; syntax-checked only
 - `patches/libero_safety_issue3.patch` — `git apply --check` passes against LIBERO-Safety `19ec8df`; behaviour untested until `test_fixtures.py`
 - `tests/test_env.py` — 12 checks; never run (needs the pod)
+- `manifests/instructions.csv` — first draft, **needs Ryan's edit**: 4 train + 2 test harmful, 4 train + 2 test benign (`{task}` = BDDL language), one blank row
 
-## Planned (in `PLAN.md` day order)
+## Planned (IMPLEMENTATION.md Phase 0 order)
 
-- `manifests/splits.csv` (tasks 1–3 train, 4–5 test), `manifests/instructions.csv`
 - `ftr/envs.py` + `tests/test_fixtures.py` (Issue #3 patch validated)
 - `ftr/codec.py` + `tests/test_codec.py`
 - `ftr/rollout.py` — P baseline on test states (harmful / benign / blank), `libero_spatial` 20 episodes
