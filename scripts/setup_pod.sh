@@ -91,8 +91,11 @@ mkdir -p ~/.libero && cp $W/LIBERO-Safety/.libero_config/config.yaml ~/.libero/c
 export HF_HOME=$HF
 HFDL="$PY -m huggingface_hub.commands.huggingface_cli download"
 [ -f $HF/P/config.json ] || $HFDL openvla/openvla-7b-finetuned-libero-spatial --local-dir $HF/P
-[ -d $HF/rlds/libero_spatial_no_noops ] || $HFDL openvla/modified_libero_rlds --repo-type dataset \
-    --include "libero_spatial_no_noops/*" --include "libero_object_no_noops/*" --local-dir $HF/rlds
+# one call per suite: repeated --include flags keep only the last one; guard on a file, not a directory
+for SUITE in libero_spatial_no_noops libero_object_no_noops; do
+    [ -f $HF/rlds/$SUITE/1.0.0/dataset_info.json ] || \
+        $HFDL openvla/modified_libero_rlds --repo-type dataset --include "$SUITE/*" --local-dir $HF/rlds
+done
 [ -d $HF/safety_assets ] || $HFDL LIBERO-Safety/libero_safety_assets --repo-type dataset --local-dir $HF/safety_assets
 # assets.zip has a top-level `assets/` folder (902,920 entries): unzip into the fork's libero/libero/ so it lands
 # at libero/libero/assets/. Redo each session if W is ephemeral. Detect by a known file, not a marker.
