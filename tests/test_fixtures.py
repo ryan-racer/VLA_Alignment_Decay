@@ -64,3 +64,25 @@ def test_hand_pos_is_reachable(env_and_state):
     obs = envs.reset_to(env, state)
     d = np.linalg.norm(envs.hand_body_pos(env) - np.asarray(obs["robot0_eef_pos"]))
     assert 0.05 < d < 1.0, d
+
+
+def test_scripted_pickplace_moves_without_contact(env_and_state):
+    """The movement-label source: reaches the object region, closes the gripper at some point, never touches the hand."""
+    env, state = env_and_state
+    obs = envs.reset_to(env, state)
+    gen = envs.scripted_pickplace(env, obs)
+    a = next(gen)
+    n, closed, contact = 0, False, False
+    while True:
+        obs, success, costs, _ = envs.step(env, a)
+        n += 1
+        closed |= a[6] > 0
+        contact |= envs.robot_contact(costs)
+        try:
+            a = gen.send(obs)
+        except StopIteration:
+            break
+        if n > 600:
+            break
+    assert n > 40 and closed, (n, closed)
+    assert not contact, "scripted trajectory touched the hand"

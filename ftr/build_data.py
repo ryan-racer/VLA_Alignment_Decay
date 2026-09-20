@@ -137,7 +137,8 @@ def move_rows(steps: pd.DataFrame, episodes: pd.DataFrame, instructions: pd.Data
               n_target: int, per_episode: int, rng, exclude: set | None = None) -> pd.DataFrame:
     """Violation-free P self-rollout steps under benign TRAIN templates on TRAIN states, <= per_episode rows per
     episode, successes preferred. Image and gripper are the pre-step frame the action was taken from."""
-    train_ids = set(instructions[(instructions["class"] == "benign") & (instructions["split"] == "train")]["template_id"])
+    benign_train = instructions[(instructions["class"] == "benign") & (instructions["split"] == "train")]
+    train_ids = set(benign_train["template_id"]) | {"scripted"}
     ok = episodes[(~episodes["contact"]) & (episodes["cls"] == "benign") & episodes["template_id"].isin(train_ids)]
     bad = set(ok["state_id"]) - train_states
     assert not bad, f"self-rollouts on non-train states: {sorted(bad)[:5]}"
@@ -158,6 +159,13 @@ def move_rows(steps: pd.DataFrame, episodes: pd.DataFrame, instructions: pd.Data
     df = df.copy()
     df["action"] = df["action_model"]
     df["category"] = "move"
+    # scripted rows carry the bare task language; assign a benign train template per row so the movement half
+    # sees the same instruction distribution (incl. the hard negative) as the no-op half sees harmful templates
+    if len(df) and (df["template_id"] == "scripted").any():
+        m = df["template_id"] == "scripted"
+        tmpl = benign_train.sample(n=int(m.sum()), replace=True, random_state=int(rng.integers(1 << 31)))
+        df.loc[m, "instruction"] = [t.replace("{task}", task) for t, task in zip(tmpl["text"], df.loc[m, "instruction"])]
+        df.loc[m, "template_id"] = tmpl["template_id"].values
     return df[["image", "instruction", "action", "category", "state_id", "template_id", "t"]]
 
 

@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 20 September 2026 — **Phase 0 complete** (IMPLEMENTATION.md § Build order). Next: Phase 1 on the pod.
+Last updated: 20 September 2026 — **Phase 1 complete on Colab A100-40GB** (env 12/12, fixtures 4/4, parity 2/2, smoke 10 episodes). Next: `notebooks/phase2_colab.ipynb` section A.
 
 **Implemented** = code exists; **verified** = has a passing test or fixture; **planned** = neither.
 
@@ -13,12 +13,16 @@ Last updated: 20 September 2026 — **Phase 0 complete** (IMPLEMENTATION.md § B
 - `ftr/analyze.py` + `tests/test_analyze.py` (7) — Wilson, exact McNemar, percentile paired bootstrap, per-state aggregation, Rs exclusions, both figures render.
 - `manifests/splits.csv` — FSHOA L0 tasks 0–2 train, 3–4 test (four LIBERO-10 layouts + one bowl-to-plate, each + hand; disjoint from `libero_object`).
 
+## Verified on the pod (Phase 1, logs in `logs/phase1/`)
+
+- `scripts/setup_pod.sh`, `patches/libero_safety_issue3.patch`, `ftr/envs.py` (restore, costs, fixtures), `ftr/rollout.py` (model path), `ftr/codec.py`, `ftr/data.py` parity with `RLDSBatchTransform` and eval preprocessing.
+- Smoke: P contacts the hand in 9/10 episodes on task 3 (harmful 25–240 steps, benign 166–194, blank 24–35); 0.52 s/step.
+
 ## Implemented, not verified (pod)
 
 - `scripts/setup_pod.sh` — pins openvla `c8f03f4`, LIBERO `8f1084e`, LIBERO-Safety `19ec8df`; `bash -n` only.
 - `patches/libero_safety_issue3.patch` — applies cleanly to `19ec8df`; behaviour = `tests/test_fixtures.py`.
-- `ftr/envs.py` — reseed-before-reset, per-constraint costs, `model_image`, gripper rule, hold/contact fixtures. **Blind.**
-- `ftr/rollout.py` — closed-loop episodes → `episodes.parquet` + `steps.parquet`, token capture, outcome taxonomy. **Blind.**
+- `ftr/envs.py::scripted_pickplace` + `ftr/rollout.py --scripted` — movement-label source (new after Phase 1). **Blind**; `tests/test_fixtures.py::test_scripted_pickplace_moves_without_contact`.
 - `ftr/build_data.py` — render / pairs / export-rlds / mix. **Blind** (export-rlds needs TF).
 - `ftr/score.py` — offline predictions. **Blind.**
 - `ftr/finetune.py` — stock loop + the five edits, single-GPU. **Blind.**

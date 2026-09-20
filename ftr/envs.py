@@ -18,6 +18,9 @@ HOLD_ACTION = [0, 0, 0, 0, 0, 0, -1]
 SETTLE_STEPS = 10
 MAX_STEPS = {"libero_spatial": 220, "libero_object": 280, "libero_goal": 300, "libero_10": 520, "libero_90": 400,
              "obstacle_avoidance_human": 520}  # FSHOA L0: four LIBERO-10 layouts + one LIBERO-90 scene; 520 as LIBERO-10
+# Hazard-scene horizons by instruction class (PLAN.md, after the Phase 1 smoke run: P strikes the hand in 25-35 steps,
+# benign contacts happen at 160-240 steps, a held refusal costs the full horizon at ~0.5 s/step).
+HAZARD_HORIZON = {"harmful": 200, "benign": 300, "blank": 200}
 FORK_SUITES = ("obstacle_avoidance_human", "human_safety", "obstacle_avoidance", "affordance", "reasoning_safety")
 
 
@@ -192,3 +195,69 @@ def hold(n_steps: int):
     """n_steps of the all-zero action (gripper open): the physical hold fixture."""
     for _ in range(n_steps):
         yield np.asarray(HOLD_ACTION, dtype=np.float64)
+
+
+# --- scripted pick-and-place (movement labels) ----------------------------------------------------
+#
+# The Phase 1 smoke run showed P contacts the hand on ~90% of benign episodes, so P's own rollouts cannot supply
+# violation-free movement labels. This is PLAN.md's pre-declared fallback: a hand-avoiding scripted trajectory
+# for the task's first goal, executed on the same paired states. Labels are its env actions; episodes that still
+# touch the hand are dropped by build_data's violation-free filter.
+
+
+def body_pos(env, name: str) -> np.ndarray:
+    """World position of a BDDL object's or fixture's root body."""
+    d = env.env.objects_dict if name in env.env.objects_dict else env.env.fixtures_dict
+    return np.asarray(env.sim.data.body_xpos[env.sim.model.body_name2id(d[name].root_body)])
+
+
+def first_goal(env):
+    """(object, target_owner) from the first On/In goal predicate; region 'basket_1_contain_region' -> owner 'basket_1'."""
+    for g in env.env.parsed_problem["goal_state"]:
+        if g[0] in ("on", "in") and len(g) == 3:
+            obj, region = g[1], g[2]
+            names = list(env.env.objects_dict) + list(env.env.fixtures_dict)
+            owner = max((n for n in names if region.startswith(n)), key=len, default=None)
+            if owner is not None:
+                return obj, owner
+    raise ValueError(f"no On/In goal in {env.env.parsed_problem['goal_state']}")
+
+
+def _goto(obs_getter, target, k=8.0, tol=0.015, max_steps=80, gripper=-1.0):
+    """Yield OSC_POSE actions (normalized deltas, ±0.05 m per unit) until the end-effector is within tol of target."""
+    for _ in range(max_steps):
+        eef = np.asarray(obs_getter()["robot0_eef_pos"])
+        err = target - eef
+        if np.linalg.norm(err) < tol:
+            return
+        a = np.zeros(7)
+        a[:3] = np.clip(k * err, -1.0, 1.0)
+        a[6] = gripper
+        yield a
+
+
+def scripted_pickplace(env, obs, clearance: float = 0.30, grasp_dz: float = 0.02, place_dz: float = 0.12):
+    """Generator of env actions: rise, go above the object at `clearance`, descend, close, rise, go above the
+    target, lower, open. Drive with send(obs). Task-agnostic; success is not required, only safe motion."""
+    state = {"obs": obs}
+    get = lambda: state["obs"]  # noqa: E731
+
+    def run(gen):
+        for a in gen:
+            state["obs"] = yield a
+
+    obj, owner = first_goal(env)
+    z_obj = body_pos(env, obj)[2]
+    yield from run(_goto(get, np.asarray(get()["robot0_eef_pos"]) * [1, 1, 0] + [0, 0, z_obj + clearance]))
+    yield from run(_goto(get, body_pos(env, obj) + [0, 0, clearance]))
+    yield from run(_goto(get, body_pos(env, obj) + [0, 0, grasp_dz], k=6.0, max_steps=60))
+    for _ in range(12):  # close
+        a = np.zeros(7); a[6] = 1.0
+        state["obs"] = yield a
+    yield from run(_goto(get, body_pos(env, obj) + [0, 0, clearance], gripper=1.0))
+    yield from run(_goto(get, body_pos(env, owner) + [0, 0, clearance], gripper=1.0, max_steps=120))
+    yield from run(_goto(get, body_pos(env, owner) + [0, 0, place_dz], gripper=1.0, k=6.0, max_steps=60))
+    for _ in range(8):  # open
+        a = np.zeros(7); a[6] = -1.0
+        state["obs"] = yield a
+    yield from run(_goto(get, body_pos(env, owner) + [0, 0, clearance], max_steps=40))
