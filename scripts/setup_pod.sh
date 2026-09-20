@@ -2,11 +2,12 @@
 # Idempotent GPU environment for OpenVLA + LIBERO + LIBERO-Safety. Works on a RunPod pod or a Colab runtime.
 #
 #   W     local, fast, may be ephemeral: venv, openvla, LIBERO clones          (default /workspace)
-#   DATA  persistent: HF cache (P, RLDS shards, assets zip), runs/, data/, logs/  (default $W)
+#   DATA  persistent, small: runs/, data/, logs/, adapters                     (default $W)
+#   HF    where the ~31 GB of public downloads go; local is fine, HF re-serves them in minutes  (default $W/hf)
 #   CUDA  cu118 (default; prebuilt flash-attn wheel, no compile) or cu121 (compiles flash-attn, ~30-60 min)
 #
 #   RunPod:  git clone <repo> /workspace/repo && bash /workspace/repo/scripts/setup_pod.sh
-#   Colab:   see notebooks/phase1_colab.ipynb (W=/content/ftr DATA=/content/drive/MyDrive/ftr)
+#   Colab:   see notebooks/phase1_colab.ipynb (W=/content/ftr HF=/content/ftr/hf DATA=/content/drive/MyDrive/ftr)
 #   then:    source $W/env.sh && pytest $REPO/tests/test_env.py -m gpu -v
 set -euo pipefail
 
@@ -14,10 +15,11 @@ W=${W:-/workspace}
 DATA=${DATA:-$W}
 CUDA=${CUDA:-cu118}
 REPO=${REPO:-$W/repo}
+HF=${HF:-$W/hf}
 OPENVLA_SHA=c8f03f4
 LIBERO_SHA=8f1084e3132a39270c3a13ebe37270a43ece2a01
 LIBERO_SAFETY_SHA=19ec8df23eedfbb9265bafd3e56495fcebfcfcd0
-mkdir -p "$W" "$DATA"/{hf,runs,data,logs}
+mkdir -p "$W" "$HF" "$DATA"/{runs,data,logs}
 
 # ---- apt (EGL headless rendering, build tools, fork extras) ----------------------------------
 export DEBIAN_FRONTEND=noninteractive
@@ -79,15 +81,15 @@ datasets: $DATA/data/libero
 assets: $W/LIBERO/libero/libero/assets
 EOF
 
-# ---- artifacts on the persistent volume -----------------------------------------------------------
-export HF_HOME=$DATA/hf
-[ -f $DATA/hf/P/config.json ] || hf download openvla/openvla-7b-finetuned-libero-spatial --local-dir $DATA/hf/P
-[ -d $DATA/hf/rlds/libero_spatial_no_noops ] || hf download openvla/modified_libero_rlds --repo-type dataset \
-    --include "libero_spatial_no_noops/*" --include "libero_object_no_noops/*" --local-dir $DATA/hf/rlds
-[ -d $DATA/hf/safety_assets ] || hf download LIBERO-Safety/libero_safety_assets --repo-type dataset --local-dir $DATA/hf/safety_assets
+# ---- public downloads (skipped when already present) -----------------------------------------------
+export HF_HOME=$HF
+[ -f $HF/P/config.json ] || hf download openvla/openvla-7b-finetuned-libero-spatial --local-dir $HF/P
+[ -d $HF/rlds/libero_spatial_no_noops ] || hf download openvla/modified_libero_rlds --repo-type dataset \
+    --include "libero_spatial_no_noops/*" --include "libero_object_no_noops/*" --local-dir $HF/rlds
+[ -d $HF/safety_assets ] || hf download LIBERO-Safety/libero_safety_assets --repo-type dataset --local-dir $HF/safety_assets
 # the assets unpack into the (local) fork clone; redo each session if W is ephemeral
 if [ ! -f $W/LIBERO-Safety/libero/libero/assets/.unpacked ]; then
-    find $DATA/hf/safety_assets -name '*.zip' -exec unzip -q -o {} -d $W/LIBERO-Safety/libero/libero/assets/ \;
+    find $HF/safety_assets -name '*.zip' -exec unzip -q -o {} -d $W/LIBERO-Safety/libero/libero/assets/ \;
     touch $W/LIBERO-Safety/libero/libero/assets/.unpacked
 fi
 
@@ -95,7 +97,7 @@ fi
 cat > $W/env.sh <<EOF
 source $W/venv/bin/activate
 export MUJOCO_GL=egl PYOPENGL_PLATFORM=egl NVIDIA_DRIVER_CAPABILITIES=all
-export HF_HOME=$DATA/hf FTR_P_DIR=$DATA/hf/P FTR_RLDS_DIR=$DATA/hf/rlds FTR_DATA=$DATA WANDB_MODE=offline
+export HF_HOME=$DATA/hf FTR_P_DIR=$HF/P FTR_RLDS_DIR=$HF/rlds FTR_DATA=$DATA WANDB_MODE=offline
 export WANDB_DIR=$DATA/logs TOKENIZERS_PARALLELISM=false
 # pick ONE libero: \$W/LIBERO for libero_spatial/libero_object, \$W/LIBERO-Safety for FSHOA
 export PYTHONPATH=$REPO:$W/openvla:\${LIBERO_DIR:-$W/LIBERO-Safety}
