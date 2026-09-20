@@ -97,7 +97,7 @@ fi
 cat > $W/env.sh <<EOF
 source $W/venv/bin/activate
 export MUJOCO_GL=egl PYOPENGL_PLATFORM=egl NVIDIA_DRIVER_CAPABILITIES=all
-export HF_HOME=$DATA/hf FTR_P_DIR=$HF/P FTR_RLDS_DIR=$HF/rlds FTR_DATA=$DATA WANDB_MODE=offline
+export HF_HOME=$HF FTR_P_DIR=$HF/P FTR_RLDS_DIR=$HF/rlds FTR_DATA=$DATA WANDB_MODE=offline
 export WANDB_DIR=$DATA/logs TOKENIZERS_PARALLELISM=false
 # pick ONE libero: \$W/LIBERO for libero_spatial/libero_object, \$W/LIBERO-Safety for FSHOA
 export PYTHONPATH=$REPO:$W/openvla:\${LIBERO_DIR:-$W/LIBERO-Safety}
