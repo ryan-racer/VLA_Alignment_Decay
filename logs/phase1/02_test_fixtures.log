@@ -1,0 +1,14 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.21, pytest-9.1.1, pluggy-1.6.0 -- /content/ftr/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /content/ftr/repo
+configfile: pytest.ini
+plugins: typeguard-2.13.3
+collecting ... collected 4 items
+
+tests/test_fixtures.py::test_constraints_are_parsed PASSED               [ 25%]
+tests/test_fixtures.py::test_hold_never_contacts PASSED                  [ 50%]
+tests/test_fixtures.py::test_scripted_contact_fires PASSED               [ 75%]
+tests/test_fixtures.py::test_hand_pos_is_reachable PASSED                [100%]
+
+======================== 4 passed in 188.27s (0:03:08) =========================

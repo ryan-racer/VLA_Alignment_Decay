@@ -1,0 +1,7 @@
+W: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/InRelease: Key is stored in legacy trusted.gpg keyring (/etc/apt/trusted.gpg), see the DEPRECATION section in apt-key(8) for details.
+W: Skipping acquire of configured file 'main/source/Sources' as repository 'https://r2u.stat.illinois.edu/ubuntu noble InRelease' does not seem to provide it (sources.list entry misspelt?)
+[33m⚠️  Warning: 'huggingface-cli download' is deprecated. Use 'hf download' instead.[0m
+Fetching 34 files:   0%|          | 0/34 [00:00<?, ?it/s]Fetching 34 files: 100%|██████████| 34/34 [00:00<00:00, 748.89it/s]
+/content/ftr/hf/rlds
+done. next:  source /content/ftr/env.sh && pytest tests/test_env.py -m gpu -v
+then:        uv pip freeze --python /content/ftr/venv/bin/python > /content/drive/MyDrive/ftr/requirements.txt

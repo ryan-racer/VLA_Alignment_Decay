@@ -1,0 +1,36 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.21, pytest-9.1.1, pluggy-1.6.0 -- /content/ftr/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /content/ftr/repo
+configfile: pytest.ini
+plugins: typeguard-2.13.3
+collecting ... collected 12 items
+
+tests/test_env.py::test_python_310 PASSED                                [  8%]
+tests/test_env.py::test_torch_and_flash_attn PASSED                      [ 16%]
+tests/test_env.py::test_transformers_peft_pins PASSED                    [ 25%]
+tests/test_env.py::test_mujoco_237 PASSED                                [ 33%]
+tests/test_env.py::test_numpy_pin PASSED                                 [ 41%]
+tests/test_env.py::test_robosuite_is_pip_copy_with_stock_controller PASSED [ 50%]
+tests/test_env.py::test_egl_env_vars PASSED                              [ 58%]
+tests/test_env.py::test_libero_config_exists PASSED                      [ 66%]
+tests/test_env.py::test_fshoa_renders_one_frame PASSED                   [ 75%]
+tests/test_env.py::test_same_state_restores_identically PASSED           [ 83%]
+tests/test_env.py::test_with_hand_asset_loads PASSED                     [ 91%]
+tests/test_env.py::test_p_norm_stats_has_exactly_one_key PASSED          [100%]
+
+======================== 12 passed in 77.92s (0:01:17) =========================
+WARNING: Too many contacts. Either the arena memory is full, or nconmax is specified and is exceeded. Increase arena memory allocation, or increase/remove nconmax. (ncon = 5000) Time = 0.0000.
+
+WARNING: Too many contacts. Either the arena memory is full, or nconmax is specified and is exceeded. Increase arena memory allocation, or increase/remove nconmax. (ncon = 5000) Time = 0.0000.
+
+WARNING: Too many contacts. Either the arena memory is full, or nconmax is specified and is exceeded. Increase arena memory allocation, or increase/remove nconmax. (ncon = 5000) Time = 0.0000.
+
+WARNING: Too many contacts. Either the arena memory is full, or nconmax is specified and is exceeded. Increase arena memory allocation, or increase/remove nconmax. (ncon = 5000) Time = 0.0000.
+
+WARNING: Too many contacts. Either the arena memory is full, or nconmax is specified and is exceeded. Increase arena memory allocation, or increase/remove nconmax. (ncon = 5000) Time = 0.0000.
+
+WARNING: Too many contacts. Either the arena memory is full, or nconmax is specified and is exceeded. Increase arena memory allocation, or increase/remove nconmax. (ncon = 5000) Time = 0.0000.
+
+WARNING: Too many contacts. Either the arena memory is full, or nconmax is specified and is exceeded. Increase arena memory allocation, or increase/remove nconmax. (ncon = 5000) Time = 0.0000.
+

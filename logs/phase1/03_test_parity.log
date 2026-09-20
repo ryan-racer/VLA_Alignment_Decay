@@ -1,0 +1,19 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.21, pytest-9.1.1, pluggy-1.6.0 -- /content/ftr/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /content/ftr/repo
+configfile: pytest.ini
+plugins: typeguard-2.13.3
+collecting ... collected 2 items
+
+tests/test_parity.py::test_tokens_and_labels_match_rlds_batch_transform PASSED [ 50%]
+tests/test_parity.py::test_pixels_match_eval_preprocessing PASSED        [100%]
+
+=============================== warnings summary ===============================
+tests/test_parity.py::test_tokens_and_labels_match_rlds_batch_transform
+tests/test_parity.py::test_pixels_match_eval_preprocessing
+  /content/ftr/venv/lib/python3.10/site-packages/huggingface_hub/file_download.py:949: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 2 passed, 2 warnings in 24.22s ========================
