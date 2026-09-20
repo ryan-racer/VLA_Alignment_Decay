@@ -83,14 +83,15 @@ def test_libero_config_exists():
 
 def _fshoa_env_and_states():
     from libero.libero import benchmark
-    from libero.libero.envs import OffScreenRenderEnv
 
     suite = benchmark.get_benchmark("obstacle_avoidance_human")()
     level = 0
     bddl = suite.get_task_bddl_file_path(level, FSHOA_L0_TASK)
     states = suite.get_task_init_states(level, FSHOA_L0_TASK)
     states = np.asarray(states)  # fork stores torch tensors, shape (50, nq+nv+1)
-    env = OffScreenRenderEnv(bddl_file_name=bddl, camera_heights=256, camera_widths=256)
+    from ftr import envs
+
+    env = envs.make_env(bddl)  # soft reset by default; the determinism test below is what licenses that
     return env, states
 
 

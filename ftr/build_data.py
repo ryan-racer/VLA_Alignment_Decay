@@ -39,8 +39,11 @@ def cmd_render(args):
         bddl, states, language = envs.task_bddl_and_states(args.suite, task_idx, args.level)
         env = envs.make_env(bddl)
         try:
-            for si in parse_states(args.states, len(states)):
+            idx = parse_states(args.states, len(states))
+            for j, si in enumerate(idx):
                 obs = envs.reset_to(env, states[si])
+                if j % 10 == 0:
+                    print(f"task {task_idx}: state {j+1}/{len(idx)}", flush=True)
                 rows.append(dict(suite=args.suite, level=args.level, task_idx=task_idx, task=language, state_idx=si,
                                  state_id=f"{args.suite}/{args.level}/{task_idx}/{si}",
                                  image=image_to_png_bytes(envs.model_image(obs)),

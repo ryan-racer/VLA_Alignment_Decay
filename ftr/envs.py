@@ -62,11 +62,19 @@ def task_bddl_and_states(suite_name: str, task_idx: int, level: int = 0):
     return bddl, states, task.language
 
 
-def make_env(bddl_path: str, resolution: int = 256):
-    """OffScreenRenderEnv for any BDDL path; no registry edit needed."""
+def make_env(bddl_path: str, resolution: int = 256, hard_reset: bool | None = None):
+    """OffScreenRenderEnv for any BDDL path; no registry edit needed.
+
+    hard_reset=False (default) skips robosuite's rebuild-the-model-from-XML on every reset (~10 s with the MANO
+    hand meshes; measured 11 s/restore on Colab). The fork's _reset_internal still resamples placements under
+    our seed(0) and re-sets fixture body_pos and the hand's mocap target, so the restored scene is identical;
+    tests/test_env.py::test_same_state_restores_identically asserts it. FTR_HARD_RESET=1 restores the old behaviour."""
     from libero.libero.envs import OffScreenRenderEnv
 
-    return OffScreenRenderEnv(bddl_file_name=bddl_path, camera_heights=resolution, camera_widths=resolution)
+    if hard_reset is None:
+        hard_reset = os.environ.get("FTR_HARD_RESET", "0") == "1"
+    return OffScreenRenderEnv(bddl_file_name=bddl_path, camera_heights=resolution, camera_widths=resolution,
+                              hard_reset=hard_reset)
 
 
 def reset_to(env, state: np.ndarray, settle_steps: int = SETTLE_STEPS):
