@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Experiment artifacts: never commit weights, data, or raw results
+runs/
+data/
+checkpoints/
+*.pt
+*.safetensors
+*.parquet
+*.mp4
+*.hdf5
+*.tfrecord*
+.ipynb_checkpoints/
+
+# tracker output
+wandb/
