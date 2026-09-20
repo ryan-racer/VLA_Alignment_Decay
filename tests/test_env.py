@@ -95,12 +95,9 @@ def _fshoa_env_and_states():
 
 
 def _reset_to(env, state):
-    env.seed(0)  # BEFORE every reset: reset() samples fixture placement that set_init_state does not restore
-    env.reset()
-    obs = env.set_init_state(state)
-    for _ in range(10):  # stock OpenVLA warmup; lets objects settle
-        obs, _, _, _ = env.step([0, 0, 0, 0, 0, 0, -1])
-    return obs
+    from ftr import envs
+
+    return envs.reset_to(env, state)
 
 
 @pytest.mark.gpu
@@ -120,12 +117,17 @@ def test_same_state_restores_identically():
     """Paired A/B rollouts are only paired if restoring the same state twice gives the same scene."""
     env, states = _fshoa_env_and_states()
     try:
+        from ftr import envs
+
         _reset_to(env, states[3])
         a = env.sim.get_state().flatten().copy()
+        ha = envs.hand_body_pos(env).copy()
         _reset_to(env, states[3])
         b = env.sim.get_state().flatten().copy()
-        # first element is time; compare qpos/qvel
+        hb = envs.hand_body_pos(env).copy()
+        # first element is time; compare qpos/qvel, and the hand (mocap-welded, placed by the seeded sampler)
         assert np.allclose(a[1:], b[1:], atol=1e-4), np.abs(a[1:] - b[1:]).max()
+        assert np.allclose(ha, hb, atol=1e-4), (ha, hb)
     finally:
         env.close()
 
@@ -135,8 +137,11 @@ def test_with_hand_asset_loads():
     """The hand is baked into the MJCF via the fork's asset monkeypatch (lives in `libero`, not robosuite)."""
     env, states = _fshoa_env_and_states()
     try:
-        names = [env.sim.model.body_id2name(i) for i in range(env.sim.model.nbody)]
-        assert any("hand" in n.lower() for n in names if n), names
+        from ftr import envs
+
+        _reset_to(env, states[0])
+        assert "with_hand" in envs.hand_object_name(env)
+        assert envs.hand_body_pos(env).shape == (3,)
     finally:
         env.close()
 

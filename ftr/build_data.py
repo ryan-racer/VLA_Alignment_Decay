@@ -44,7 +44,7 @@ def cmd_render(args):
                 rows.append(dict(suite=args.suite, level=args.level, task_idx=task_idx, task=language, state_idx=si,
                                  state_id=f"{args.suite}/{args.level}/{task_idx}/{si}",
                                  image=image_to_png_bytes(envs.model_image(obs)),
-                                 gripper_state=envs.gripper_state_rlds(obs)))
+                                 gripper_state=envs.GRIPPER_OPEN_RLDS))  # settle steps command open
         finally:
             env.close()
     pd.DataFrame(rows).to_parquet(args.out)
@@ -133,48 +133,61 @@ def noop_rows(states: pd.DataFrame, instructions: pd.DataFrame, n_target: int, r
     return df[["image", "instruction", "action", "category", "state_id", "template_id"]]
 
 
-def move_rows(steps: pd.DataFrame, episodes: pd.DataFrame, n_target: int, per_episode: int, rng, states: pd.DataFrame | None = None) -> pd.DataFrame:
-    """Violation-free P self-rollout steps under benign train templates, ≤ per_episode states per episode,
-    successes preferred. Image = the frame the action was taken from (re-rendered in steps.parquet by rollout)."""
-    ok = episodes[(~episodes["contact"]) & (episodes["cls"] == "benign")]
-    ok = ok.sort_values("success", ascending=False)
-    key = ["state_id", "template_id"]
+def move_rows(steps: pd.DataFrame, episodes: pd.DataFrame, instructions: pd.DataFrame, train_states: set,
+              n_target: int, per_episode: int, rng, exclude: set | None = None) -> pd.DataFrame:
+    """Violation-free P self-rollout steps under benign TRAIN templates on TRAIN states, <= per_episode rows per
+    episode, successes preferred. Image and gripper are the pre-step frame the action was taken from."""
+    train_ids = set(instructions[(instructions["class"] == "benign") & (instructions["split"] == "train")]["template_id"])
+    ok = episodes[(~episodes["contact"]) & (episodes["cls"] == "benign") & episodes["template_id"].isin(train_ids)]
+    bad = set(ok["state_id"]) - train_states
+    assert not bad, f"self-rollouts on non-train states: {sorted(bad)[:5]}"
+    assert "image" in steps.columns, "steps have no images: rerun rollout with --store-images"
+    ok = ok.sort_values("success", ascending=False, kind="stable")
+    exclude = exclude or set()
     picked = []
     for _, e in ok.iterrows():
         s = steps[(steps["state_id"] == e["state_id"]) & (steps["template_id"] == e["template_id"])]
         s = s[~s["refused_k1"]]  # a movement label must move
+        s = s[~s.apply(lambda r: (r["state_id"], r["template_id"], int(r["t"])) in exclude, axis=1)] if len(s) else s
         if len(s) == 0:
             continue
-        s = s.sample(n=min(per_episode, len(s)), random_state=int(rng.integers(1 << 31)))
-        picked.append(s)
+        picked.append(s.sample(n=min(per_episode, len(s)), random_state=int(rng.integers(1 << 31))))
         if sum(len(p) for p in picked) >= n_target:
             break
-    df = pd.concat(picked).head(n_target) if picked else pd.DataFrame()
-    df = df.rename(columns={"image": "image"})
+    df = pd.concat(picked).head(n_target) if picked else pd.DataFrame(columns=steps.columns)
+    df = df.copy()
     df["action"] = df["action_model"]
     df["category"] = "move"
-    return df[["image", "instruction", "action", "category", "state_id", "template_id"]]
+    return df[["image", "instruction", "action", "category", "state_id", "template_id", "t"]]
 
 
 def cmd_mix(args):
-    """Bake one training Parquet per arm. A: noop+move+rehearsal. C: same move/rehearsal rows, noop slots -> more movement."""
+    """Bake one training Parquet per arm. A: noop + move + rehearsal. C: the same move/rehearsal rows, with the
+    no-op slots filled by additional (disjoint) movement and rehearsal rows. Same row count, same update count."""
+    from ftr.rollout import read_steps
+
     rng = np.random.default_rng(args.seed)
     states = pd.read_parquet(args.states)
+    train_states = set(states["state_id"])
     ins = pd.read_csv(args.instructions, keep_default_na=False)
-    steps = pd.read_parquet(args.self)
+    steps = read_steps(args.self)
     episodes = pd.read_parquet(args.self_episodes)
-    rehearsal = pd.read_parquet(args.rehearsal)[["image", "instruction", "action", "category"]]
+    rehearsal = pd.read_parquet(args.rehearsal)[["image", "instruction", "action", "category"]].copy()
     rehearsal["category"] = "rehearsal"
-    move = move_rows(steps, episodes, args.n_move, args.per_episode, rng)
+    move = move_rows(steps, episodes, ins, train_states, args.n_move, args.per_episode, rng)
     reh = rehearsal.sample(n=min(args.n_rehearsal, len(rehearsal)), random_state=args.seed)
     if args.arm == "A":
         noop = noop_rows(states, ins, args.n_noop, rng)
         parts = [noop, move, reh]
-    else:  # C: same movement rows, no-op slots filled with more movement + rehearsal
-        extra_move = move_rows(steps, episodes, args.n_noop // 2, args.per_episode, np.random.default_rng(args.seed + 1))
-        extra_reh = rehearsal.drop(reh.index).sample(n=min(args.n_noop - len(extra_move), len(rehearsal) - len(reh)), random_state=args.seed + 1)
+    else:  # C
+        used = set(zip(move["state_id"], move["template_id"], move["t"].astype(int)))
+        extra_move = move_rows(steps, episodes, ins, train_states, args.n_noop // 2, args.per_episode,
+                               np.random.default_rng(args.seed + 1), exclude=used)
+        n_extra_reh = args.n_noop - len(extra_move)
+        extra_reh = rehearsal.drop(reh.index).sample(n=min(n_extra_reh, len(rehearsal) - len(reh)), random_state=args.seed + 1)
         parts = [move, reh, extra_move, extra_reh]
-    df = pd.concat(parts, ignore_index=True).sample(frac=1.0, random_state=args.seed).reset_index(drop=True)
+    cols = ["image", "instruction", "action", "category"]
+    df = pd.concat([p[cols] for p in parts], ignore_index=True).sample(frac=1.0, random_state=args.seed).reset_index(drop=True)
     df.to_parquet(args.out)
     print(f"arm {args.arm}: {df['category'].value_counts().to_dict()} -> {args.out}")
 
@@ -191,7 +204,7 @@ def main():
     e.add_argument("--per-task", type=int, default=None); e.add_argument("--scan", type=int, default=5000); e.add_argument("--seed", type=int, default=0)
     e.add_argument("--category", default="personalize"); e.add_argument("--out", required=True)
     m = sub.add_parser("mix"); m.add_argument("--arm", choices=["A", "C"], required=True); m.add_argument("--states", required=True)
-    m.add_argument("--instructions", default="manifests/instructions.csv"); m.add_argument("--self", required=True)
+    m.add_argument("--instructions", default="manifests/instructions.csv"); m.add_argument("--self", required=True, help="rollout run dir (steps_t*.parquet)")
     m.add_argument("--self-episodes", required=True); m.add_argument("--rehearsal", required=True)
     m.add_argument("--n-noop", type=int, default=300); m.add_argument("--n-move", type=int, default=300); m.add_argument("--n-rehearsal", type=int, default=300)
     m.add_argument("--per-episode", type=int, default=5); m.add_argument("--seed", type=int, default=0); m.add_argument("--out", required=True)

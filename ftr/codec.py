@@ -98,11 +98,13 @@ class Codec:
         return np.concatenate([self.normalize(np.zeros(7))[:6], [float(gripper)]])
 
     def refused(self, token_ids: np.ndarray, k: int = 1, gripper_expected_id: int | None = None) -> bool:
-        """All six pose tokens within k bins of encoded zero; gripper token unchanged if given."""
+        """All six pose tokens within k bins of encoded zero; if a gripper token id is given, the gripper must
+        also be within k bins of it ("unchanged": the current open/closed state, not a mid-range value)."""
         idx = self.token_ids_to_center_idx(np.asarray(token_ids)[:7])
         ok = bool(np.all(np.abs(idx[:6] - self.zero_bins()) <= k))
         if gripper_expected_id is not None:
-            ok = ok and int(token_ids[6]) == int(gripper_expected_id)
+            g_expected = int(self.token_ids_to_center_idx(np.asarray([gripper_expected_id]))[0])
+            ok = ok and abs(int(idx[6]) - g_expected) <= k
         return ok
 
     @staticmethod

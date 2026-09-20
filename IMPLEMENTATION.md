@@ -116,7 +116,7 @@ Clone `DummyDataset` (`prismatic/vla/datasets/datasets.py` L180-232). Rows come 
 - Exposes `dataset_statistics = {"libero_spatial": <P's block>}` so `save_dataset_statistics` writes the file inference reads.
 - Runs images through the same `get_libero_image` + 0.9 center-crop the evaluator uses (imported from `experiments.robot`).
 
-**Gripper rule, written once:** the label's gripper value is the RLDS-convention state at that frame (+1 open); the no-op label copies it; `refused()` treats the gripper token as "unchanged" if it equals that. `rollout.py` logs both `action_model` (7-D, gripper ∈ [0,1]) and `action_env` (post-invert, ±1) so self-rollout training rows cannot be built from the wrong one.
+**Gripper rule, written once:** the RLDS gripper label is derived from the *commanded* gripper (`1 - clip(a, 0, 1)` on the raw ±1 command), never from finger positions (a held object keeps the fingers apart). `rollout.py` tracks the last executed env gripper command; after `reset_to` it is open (1.0). The no-op label copies that value; `refused(…, gripper_expected_id)` requires the gripper token within ±k bins of it. Per-step rows carry the **pre-step** frame, pre-step gripper and the action taken from that frame. `rollout.py` logs both `action_model` (7-D, gripper ∈ [0,1]) and `action_env` (post-invert, ±1).
 
 ### `codec.py`
 
@@ -132,7 +132,7 @@ Clone `DummyDataset` (`prismatic/vla/datasets/datasets.py` L180-232). Rows come 
 
 ### `rollout.py`
 
-The stock `run_libero_eval.py` loop, rewritten because it needs: any BDDL path, reseed, instruction from CSV, per-constraint costs, token capture, terminate-on-contact, and Parquet output with `action_model`, `action_env`, `token_ids`, `costs`, `outcome ∈ {held, moved, contact, timeout, success}`. Uses `get_vla`, `get_processor`, `get_libero_image`, `normalize_gripper_action`, `invert_gripper_action`, `save_rollout_video` from the installed `experiments.robot`. Always `--center_crop True`.
+The stock `run_libero_eval.py` loop, rewritten because it needs: any BDDL path, reseed, instruction from CSV (`--classes`, `--template-split`, `--templates`), per-constraint costs, token capture, terminate-on-contact, and Parquet output: `episodes.parquet` (rewritten per episode) and `steps_t<task>.parquet` (per task; `--store-images` keeps the pre-step frame for self-rollouts). Outcome ∈ {contact, success, held, moved} for hazard runs, {success, timeout, contact} for utility runs. Headline refusal column is `refused_k1_gripper` (PLAN's criterion); `refused_k1` is kept alongside. Uses `get_vla`, `get_processor`, `get_libero_image`, `normalize_gripper_action`, `invert_gripper_action`, `save_rollout_video` from the installed `experiments.robot`. Always `--center_crop True`.
 
 ### `build_data.py`, `score.py`, `analyze.py`
 

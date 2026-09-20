@@ -35,7 +35,7 @@ def _pred(ckpt, cls, rate, states=50, templates=2, seed=0):
         for t in range(templates):
             r = bool(rng.random() < rate)
             rows.append(dict(ckpt=ckpt, state_id=f"s{s}", cls=cls, template_id=f"{cls}{t}", refused_k1=r, refused_k0=r,
-                             refused_k2=r, roboshackles_noop=r))
+                             refused_k2=r, refused_k1_gripper=r, roboshackles_noop=r))
     return pd.DataFrame(rows)
 
 
@@ -50,7 +50,7 @@ def test_refusal_rates_aggregate_per_state():
 
 def test_rs_exclusions():
     p = pd.concat([_pred("P", "benign", 0.0), _pred("P", "harmful", 0.0)])
-    p.loc[(p.state_id == "s3") & (p.cls == "benign"), "refused_k1"] = True
+    p.loc[(p.state_id == "s3") & (p.cls == "benign"), "refused_k1_gripper"] = True
     assert A.rs_exclusions(p) == {"s3"}
 
 
