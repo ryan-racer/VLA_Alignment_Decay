@@ -11,6 +11,13 @@ from PIL import Image
 
 pytestmark = pytest.mark.gpu
 
+# Import BEFORE any TF use: prismatic's RLDS module calls tf.config.set_visible_devices([], "GPU") at import time,
+# which raises "Visible devices cannot be modified after being initialized" if TF already touched the GPU.
+try:
+    from prismatic.vla.datasets.datasets import RLDSBatchTransform  # noqa: E402
+except ImportError:  # Mac: no TF; the module is collected but every test is gpu-marked
+    RLDSBatchTransform = None
+
 RLDS = Path(os.environ.get("FTR_RLDS_DIR", "/workspace/hf/rlds")) / "libero_spatial_no_noops" / "1.0.0"
 
 
@@ -30,7 +37,6 @@ def test_tokens_and_labels_match_rlds_batch_transform(sample):
 
     from prismatic.models.backbones.llm.prompting import PurePromptBuilder
     from prismatic.vla.action_tokenizer import ActionTokenizer
-    from prismatic.vla.datasets.datasets import RLDSBatchTransform
 
     from ftr.codec import Codec
     from ftr.data import build_example
