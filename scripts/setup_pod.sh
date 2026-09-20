@@ -94,11 +94,16 @@ HFDL="$PY -m huggingface_hub.commands.huggingface_cli download"
 [ -d $HF/rlds/libero_spatial_no_noops ] || $HFDL openvla/modified_libero_rlds --repo-type dataset \
     --include "libero_spatial_no_noops/*" --include "libero_object_no_noops/*" --local-dir $HF/rlds
 [ -d $HF/safety_assets ] || $HFDL LIBERO-Safety/libero_safety_assets --repo-type dataset --local-dir $HF/safety_assets
-# the assets unpack into the (local) fork clone; redo each session if W is ephemeral
-if [ ! -f $W/LIBERO-Safety/libero/libero/assets/.unpacked ]; then
-    find $HF/safety_assets -name '*.zip' -exec unzip -q -o {} -d $W/LIBERO-Safety/libero/libero/assets/ \;
-    touch $W/LIBERO-Safety/libero/libero/assets/.unpacked
+# assets.zip has a top-level `assets/` folder (902,920 entries): unzip into the fork's libero/libero/ so it lands
+# at libero/libero/assets/. Redo each session if W is ephemeral. Detect by a known file, not a marker.
+ASSETS=$W/LIBERO-Safety/libero/libero/assets
+if [ -d $ASSETS/assets/scenes ]; then   # repair a nested layout from an earlier unzip into assets/
+    mv -n $ASSETS/assets/* $ASSETS/ && rm -rf $ASSETS/assets
 fi
+if [ ! -f $ASSETS/scenes/libero_tabletop_base_style.xml ]; then
+    unzip -q -o $HF/safety_assets/assets.zip -d $W/LIBERO-Safety/libero/libero/
+fi
+[ -f $ASSETS/scenes/libero_tabletop_base_style.xml ] || { echo "assets not in place: $ASSETS"; exit 1; }
 
 # ---- env file to source per shell -------------------------------------------------------------------
 cat > $W/env.sh <<EOF
