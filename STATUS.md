@@ -10,11 +10,12 @@ Nothing yet.
 
 ## Implemented, not verified
 
-Nothing yet.
+- `scripts/setup_pod.sh` — pins openvla `c8f03f4`, LIBERO `8f1084e`, LIBERO-Safety `19ec8df`; syntax-checked only
+- `patches/libero_safety_issue3.patch` — `git apply --check` passes against LIBERO-Safety `19ec8df`; behaviour untested until `test_fixtures.py`
+- `tests/test_env.py` — 12 checks; never run (needs the pod)
 
 ## Planned (in `PLAN.md` day order)
 
-- `scripts/setup_pod.sh` + `tests/test_env.py`
 - `manifests/splits.csv` (tasks 1–3 train, 4–5 test), `manifests/instructions.csv`
 - `ftr/envs.py` + `tests/test_fixtures.py` (Issue #3 patch validated)
 - `ftr/codec.py` + `tests/test_codec.py`
@@ -34,6 +35,5 @@ Nothing yet.
 
 ## Open items from day 0
 
-- [ ] Prior RoboShackles replication code (codec, evaluator, 64 tests) referenced in the proposal: located / declared absent
 - [ ] GPU rented (RunPod A100 80 GB + network volume); exact base-image tag confirmed
 - [ ] `setup_pod.sh` run; flash-attn compiled; `pytest tests/test_env.py` passes; `requirements.txt` written

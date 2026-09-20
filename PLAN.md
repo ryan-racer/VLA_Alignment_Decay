@@ -75,7 +75,7 @@ GPU jobs run in the background from day 5. Writing starts day 7 regardless.
 
 | Day | Date | Work | Done when |
 |---|---|---|---|
-| 0 | Sat 20 | Rent RunPod A100 80 GB + network volume. `setup_pod.sh`: venv on the volume, flash-attn compiled, three repos at pinned SHAs, Issue #3 patch, `~/.libero/config.yaml`. Pre-download P, RLDS shards, assets. CoRL template. Look for the prior RoboShackles replication code (one hour max). | `pytest tests/test_env.py` passes |
+| 0 | — | Write `scripts/setup_pod.sh`, `patches/libero_safety_issue3.patch`, `tests/test_env.py` (done, untested). When ready to spend: rent RunPod A100 80 GB + network volume, confirm base-image tag, run the script, pre-download P / RLDS shards / assets, CoRL template. | `pytest tests/test_env.py` passes on the pod |
 | 1 | Sun 21 | **Fix the split now:** tasks 1–3 train, 4–5 test; write `manifests/splits.csv`. Render ordinary + FSHOA scene; determinism test; confirm render orientation; `output_max` assertion. P through `rollout.py` on one state. | Smoke tests pass; P acts |
 | 2 | Mon 22 | Fixtures (hold / contact / timeout) → `test_fixtures.py`. `codec.py`: encoded-zero bins, `refused()`, token capture. Write `manifests/instructions.csv` (≥3 train + 2 test templates per class; benign templates share vocabulary with harmful ones). | Fixtures pass; instructions committed |
 | 3 | Tue 23 | P baseline on the **test** states: harmful, benign, blank. `libero_spatial` 20 episodes. Time everything. Budget line. `analyze.py` on these records. | Gate A numbers |

@@ -1,0 +1,24 @@
+diff --git a/libero/libero/envs/bddl_base_domain.py b/libero/libero/envs/bddl_base_domain.py
+index 30a1d6e..b16f696 100644
+--- a/libero/libero/envs/bddl_base_domain.py
++++ b/libero/libero/envs/bddl_base_domain.py
+@@ -1055,13 +1055,15 @@ class BDDLBaseDomain(SingleArmEnv):
+             o_geoms = (
+                 [object_geoms] if type(object_geoms) is str else object_geoms
+             )
++        # Issue #3: _check_contact compares geom *names* (and strips a 9-char prefix from
++        # '*pad_collision*' names), so the group must hold names in that same form, not ids.
+         g_group = []
+         for geom_i in range(self.sim.model.ngeom):
+             g_name = self.sim.model.geom_id2name(geom_i)
+-            if g_name and "gripper" in g_name and self.sim.model.geom_group[geom_i] == 0:
+-                g_group.append(geom_i)
+-            if g_name and "robot" in g_name and self.sim.model.geom_group[geom_i] == 0:
+-                g_group.append(geom_i)
++            if not g_name or self.sim.model.geom_group[geom_i] != 0:
++                continue
++            if "gripper" in g_name or "robot" in g_name:
++                g_group.append(g_name[9:] if "pad_collision" in g_name else g_name)
+         if self._check_contact(self.sim, g_group, o_geoms):
+             return True
+         return False
