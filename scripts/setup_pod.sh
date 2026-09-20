@@ -30,33 +30,35 @@ $SUDO apt-get install -y -qq cmake ninja-build ffmpeg libegl1 libgl1 libglew-dev
 
 # ---- Python 3.10 venv on local disk (uv fetches the interpreter if needed) -------------------
 command -v uv >/dev/null || pip install -q uv
-[ -d $W/venv ] || uv venv --python 3.10 $W/venv
+[ -x $W/venv/bin/python ] || uv venv --python 3.10 --python-preference only-managed $W/venv
+PY=$W/venv/bin/python
+$PY -c 'import sys; assert sys.version_info[:2] == (3, 10), sys.version' || { echo "venv is not Python 3.10: $($PY --version)"; exit 1; }
+UVPIP="uv pip install -q --python $PY"   # every install targets the venv explicitly (Colab's system Python is 3.13)
 source $W/venv/bin/activate
-uv pip install -q --upgrade pip
 
 # ---- torch 2.2.0 --------------------------------------------------------------------------------
-python -c "import torch; assert torch.__version__.startswith('2.2.')" 2>/dev/null || \
-    uv pip install -q torch==2.2.0 torchvision==0.17.0 --index-url https://download.pytorch.org/whl/$CUDA
+$PY -c "import torch; assert torch.__version__.startswith('2.2.')" 2>/dev/null || \
+    $UVPIP torch==2.2.0 torchvision==0.17.0 --index-url https://download.pytorch.org/whl/$CUDA
 
 # ---- openvla @ pinned commit (brings transformers 4.40.1, peft 0.11.1, tf 2.15, draccus 0.8.0) ---
 [ -d $W/openvla ] || git clone -q https://github.com/openvla/openvla.git $W/openvla
 git -C $W/openvla checkout -q $OPENVLA_SHA
-uv pip install -q -e $W/openvla
+$UVPIP -e $W/openvla
 
 # ---- flash-attn 2.5.5: wheel for cu118 / torch 2.2 / cp310; otherwise build once -------------
-if ! python -c "import flash_attn" 2>/dev/null; then
+if ! $PY -c "import flash_attn" 2>/dev/null; then
     if [ "$CUDA" = "cu118" ]; then
-        uv pip install -q "https://github.com/Dao-AILab/flash-attention/releases/download/v2.5.5/flash_attn-2.5.5+cu118torch2.2cxx11abiFALSE-cp310-cp310-linux_x86_64.whl"
+        $UVPIP "https://github.com/Dao-AILab/flash-attention/releases/download/v2.5.5/flash_attn-2.5.5+cu118torch2.2cxx11abiFALSE-cp310-cp310-linux_x86_64.whl"
     else
-        uv pip install -q packaging ninja; MAX_JOBS=4 pip install flash-attn==2.5.5 --no-build-isolation
+        $UVPIP packaging ninja; MAX_JOBS=4 $PY -m pip install flash-attn==2.5.5 --no-build-isolation
     fi
 fi
 
 # ---- LIBERO deps the OpenVLA way (never LIBERO's own requirements.txt) -------------------------
-uv pip install -q -r $W/openvla/experiments/robot/libero/libero_requirements.txt
+$UVPIP -r $W/openvla/experiments/robot/libero/libero_requirements.txt
 
 # ---- transitive pins upstream leaves loose + our deps -------------------------------------------
-uv pip install -q numpy==1.26.4 mujoco==2.3.7 tensorflow-metadata==1.14.0 wandb==0.17.9 \
+$UVPIP numpy==1.26.4 mujoco==2.3.7 tensorflow-metadata==1.14.0 wandb==0.17.9 \
     scipy pyarrow pandas seaborn matplotlib pytest huggingface_hub
 
 # ---- LIBERO (utility suites) and the LIBERO-Safety fork (FSHOA) at pinned SHAs ----------------
@@ -69,7 +71,7 @@ git -C $W/LIBERO-Safety checkout -q $LIBERO_SAFETY_SHA
 git -C $W/LIBERO-Safety apply --check $REPO/patches/libero_safety_issue3.patch 2>/dev/null && \
     git -C $W/LIBERO-Safety apply $REPO/patches/libero_safety_issue3.patch || true
 # fork extras ONLY: never its requirements.txt, never its third_party/robosuite-1.4 (osc_pose ±2 / kp 750)
-uv pip install -q "usd-core>=25.5" wand scikit-image
+$UVPIP "usd-core>=25.5" wand scikit-image
 
 # ---- ~/.libero/config.yaml: without it the first import calls input() and hangs ----------------
 mkdir -p ~/.libero
@@ -83,10 +85,11 @@ EOF
 
 # ---- public downloads (skipped when already present) -----------------------------------------------
 export HF_HOME=$HF
-[ -f $HF/P/config.json ] || hf download openvla/openvla-7b-finetuned-libero-spatial --local-dir $HF/P
-[ -d $HF/rlds/libero_spatial_no_noops ] || hf download openvla/modified_libero_rlds --repo-type dataset \
+HFDL="$PY -m huggingface_hub.commands.huggingface_cli download"
+[ -f $HF/P/config.json ] || $HFDL openvla/openvla-7b-finetuned-libero-spatial --local-dir $HF/P
+[ -d $HF/rlds/libero_spatial_no_noops ] || $HFDL openvla/modified_libero_rlds --repo-type dataset \
     --include "libero_spatial_no_noops/*" --include "libero_object_no_noops/*" --local-dir $HF/rlds
-[ -d $HF/safety_assets ] || hf download LIBERO-Safety/libero_safety_assets --repo-type dataset --local-dir $HF/safety_assets
+[ -d $HF/safety_assets ] || $HFDL LIBERO-Safety/libero_safety_assets --repo-type dataset --local-dir $HF/safety_assets
 # the assets unpack into the (local) fork clone; redo each session if W is ephemeral
 if [ ! -f $W/LIBERO-Safety/libero/libero/assets/.unpacked ]; then
     find $HF/safety_assets -name '*.zip' -exec unzip -q -o {} -d $W/LIBERO-Safety/libero/libero/assets/ \;
@@ -105,4 +108,4 @@ cd $REPO
 EOF
 
 echo "done. next:  source $W/env.sh && pytest tests/test_env.py -m gpu -v"
-echo "then:        pip freeze > $DATA/requirements.txt"
+echo "then:        $PY -m pip freeze > $DATA/requirements.txt"
