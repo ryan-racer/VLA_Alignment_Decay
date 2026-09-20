@@ -27,3 +27,11 @@ wandb/
 # local Phase-0 cache (P config/tokenizer, no weights)
 .cache/
 .env.mac
+
+# LaTeX build artifacts
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.pdf
