@@ -23,3 +23,7 @@ checkpoints/
 
 # tracker output
 wandb/
+
+# local Phase-0 cache (P config/tokenizer, no weights)
+.cache/
+.env.mac

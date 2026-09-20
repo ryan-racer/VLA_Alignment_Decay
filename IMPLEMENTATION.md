@@ -6,7 +6,47 @@ Revised 20 September 2026 (after simplification review). Companion to `PLAN.md`.
 
 Install `openvla/openvla` @ `c8f03f4` and import from it. Copy exactly one file (`finetune.py`) and change ~25 lines. Write one honest rollout loop instead of pretending the stock eval script is reusable. About 500 lines of new code, flat package, never installed, no framework.
 
-## Environment (day 0, once, on the network volume)
+## Build order
+
+Everything that can be written and verified without a GPU is done first, on the Mac. The pod is rented only when the remaining work is *running* things. Each step names what "verified" means locally; blind-written code is marked and gets its test on the pod.
+
+### Phase 0 — Mac, no GPU
+
+| # | Step | Files | Verified locally by | Done when |
+|---|---|---|---|---|
+| 0.1 | Local env | `scripts/setup_mac.sh` | — | venv with torch (cpu), `transformers==4.40.1`, `numpy==1.26.4`, `pandas scipy seaborn pyarrow pytest`; `pip install --no-deps -e /path/openvla` at `c8f03f4`; `hf download` of P's `config.json`, `tokenizer*`, `preprocessor_config.json`, `*_prismatic.py` (no weights) |
+| 0.2 | Split | `manifests/splits.csv` | eyeball | five FSHOA L0 task names from the fork's `vla_safety_task_map.py`; tasks 1–3 train, 4–5 test |
+| 0.3 | Codec | `ftr/codec.py`, `tests/test_codec.py` | `pytest` on Mac | `zero_bins()` under P's real `libero_spatial` stats lands near 113/110/128/130/138/143; round-trip within one bin; `refused()` correct on synthetic hold/contact token rows; `roboshackles_noop()` agrees with `refused(k=1)` on the same rows |
+| 0.4 | Instructions | `manifests/instructions.csv` | you edit | ≥3 train + 2 test templates per class per task; benign templates share nouns with harmful ones; blank row included |
+| 0.5 | Dataset | `ftr/data.py`, `tests/test_data.py` | `pytest` on Mac (CPU processor, no weights) | one synthetic row → `input_ids`/`labels` with exactly 8 supervised positions (7 action + EOS), prompt text matches `In: What action should the robot take to {x}?\nOut: `, no-op row's label tokens equal `zero_bins()`, gripper rule applied |
+| 0.6 | Training script | `ftr/finetune.py` | `diff` against stock; read | the five edits and nothing else; `python -c "import ftr.finetune"` on Mac |
+| 0.7 | Env wrapper **(blind)** | `ftr/envs.py` | read only | `make_env`, `reset_to` with reseed, `step_with_costs` re-evaluating each constraint, `load_init_states`, hold/contact fixtures |
+| 0.8 | Rollout loop **(blind)** | `ftr/rollout.py` | read only | CSV instructions, token capture via `codec.generate_with_tokens`, terminate-on-contact, outcome column, `action_model`/`action_env` both logged, Parquet + `args.json` |
+| 0.9 | Data builder, scorer | `ftr/build_data.py`, `ftr/score.py` | RLDS export runs on Mac **if** `tensorflow==2.15` installs; else blind | export writes `(image, instruction, raw_action)` Parquet; mix baker produces per-arm Parquet with the planned row counts; `score.py` reads `pairs.parquet` and writes `predictions.parquet` |
+| 0.10 | Analysis | `ftr/analyze.py`, `tests/test_analyze.py` | `pytest` on Mac with synthetic Parquet | Wilson, discordant pairs + exact McNemar, percentile paired bootstrap, per-state aggregation, outcome taxonomy; Fig. 1, Fig. 2, Table 1 render from fake records |
+| 0.11 | Job scripts | `scripts/train_A.sh`, `train_C.sh`, `personalize.sh` | read | the exact `finetune.py` command lines with `--save_steps == --max_steps`, seeds, paths |
+| 0.12 | Paper §1–2 | `paper/main.tex` (from the CoRL template) | compiles | motivation and protocol drafted; figure/table placeholders; every scope cut stated |
+| 0.13 | Tests scaffold | `tests/test_fixtures.py`, `tests/test_parity.py`, `tests/test_reload.py` | read | written against the interfaces above; skipped on Mac (`pytest.mark.gpu`) |
+
+Phase 0 ends with a commit. At that point every remaining task is "run it".
+
+### Phase 1 — pod, one ~2-hour session, then stop the pod and keep the volume
+
+| # | Step | Done when |
+|---|---|---|
+| 1.1 | `setup_pod.sh` | flash-attn compiled, clones at pinned SHAs, patch applied, downloads present |
+| 1.2 | `pytest tests/test_env.py` | green; `pip freeze > requirements.txt`; commit |
+| 1.3 | `pytest tests/test_fixtures.py` | patched predicate fires on contact, not on hold |
+| 1.4 | `pytest tests/test_parity.py` | our tokens and pixels match `RLDSBatchTransform` + eval preprocessing |
+| 1.5 | `rollout.py` on one FSHOA state with P | an action comes out; a video exists; s/episode measured |
+
+If 1.1–1.5 pass, the environment is real and day 1 of PLAN.md is done. Stop the pod; the volume keeps everything.
+
+### Phase 2 — pod, continuous
+
+PLAN.md days 3–9: P baseline on test states, self-rollouts, data build, A/C training, gates, hazard matrix, utility, analysis. Writing happens on the Mac in parallel from day 7.
+
+## Environment (pod, once, on the network volume)
 
 RunPod secure A100 80 GB ($1.59/h) + 200 GB network volume mounted at `/workspace`. No Docker build: start from RunPod's `pytorch 2.2.0 / py3.10 / cuda 12.1.1 devel` image (verify the exact tag on day 0) and run an idempotent `scripts/setup_pod.sh`:
 
@@ -47,9 +87,11 @@ ftr/                 flat, on PYTHONPATH, never installed
   analyze.py   ~60   Ru/Rs/blank per state; contact rates; discordant pairs; percentile paired bootstrap; two figures, one table
 patches/libero_safety_issue3.patch
 manifests/*.csv      splits, instruction templates, pair ids — committed (.gitignore swallows Parquet)
-scripts/setup_pod.sh, train_A.sh, train_C.sh, personalize.sh   the exact command lines are the configs
-tests/test_env.py test_codec.py test_parity.py test_fixtures.py test_reload.py
-requirements.txt     pip freeze, day 1
+scripts/setup_mac.sh, setup_pod.sh, train_A.sh, train_C.sh, personalize.sh   the exact command lines are the configs
+tests/  test_codec.py test_data.py test_analyze.py        run on the Mac
+        test_env.py test_fixtures.py test_parity.py test_reload.py   run on the pod (pytest.mark.gpu)
+paper/               CoRL 2026 template + main.tex
+requirements.txt     pip freeze on the pod, Phase 1
 ```
 
 Stages have different dependency footprints (TF only in `build_data`, GPU in `finetune`/`rollout`/`score`, none in `analyze`); that is why there are six modules and not three. Run as `python -m ftr.<stage>`.

@@ -6,7 +6,9 @@ Last updated: 20 September 2026 (day 0)
 
 ## Implemented and verified
 
-Nothing yet.
+- `scripts/setup_mac.sh` — Phase-0 venv (Python 3.10 via uv, CPU torch, transformers 4.40.1, openvla `c8f03f4` with `--no-deps`, P's non-weight files). Runs clean.
+- `ftr/codec.py` + `tests/test_codec.py` — 9/9 on the Mac against P's real `libero_spatial` stats. Encoded zero = center_idx `[112, 109, 127, 129, 137, 142]`; one bin ≈ 6–7 mm translation, 0.0008–0.0015 rad rotation.
+- `manifests/splits.csv` — FSHOA L0 tasks 0–2 train, 3–4 test. All five are LIBERO-10 layouts with a hand added; no overlap with `libero_object`.
 
 ## Implemented, not verified
 
