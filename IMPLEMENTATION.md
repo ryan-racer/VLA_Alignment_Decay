@@ -28,7 +28,7 @@ Everything that can be written and verified without a GPU is done first, on the 
 | 0.12 | Paper §1–2 | `paper/main.tex` (from the CoRL template) | compiles | motivation and protocol drafted; figure/table placeholders; every scope cut stated |
 | 0.13 | Tests scaffold | `tests/test_fixtures.py`, `tests/test_parity.py`, `tests/test_reload.py` | read | written against the interfaces above; skipped on Mac (`pytest.mark.gpu`) |
 
-Phase 0 ends with a commit. At that point every remaining task is "run it".
+**Phase 0 done 20 Sep 2026** — 21 Mac tests pass, 20 pod tests collected. ~2,000 lines including the copied `finetune.py` and tests; the earlier "~200 lines" counted only the adapters. Every remaining task is "run it".
 
 ### Phase 1 — pod, one ~2-hour session, then stop the pod and keep the volume
 

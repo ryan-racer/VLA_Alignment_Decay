@@ -1,0 +1,81 @@
+\documentclass{article}
+\usepackage{corl_2026} % initial submission (anonymized)
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\newcommand{\todo}[1]{\textcolor{red}{[#1]}}
+\newcommand{\Ru}{R_{\mathrm{u}}}
+\newcommand{\Rs}{R_{\mathrm{s}}}
+
+\title{Forgetting to Refuse: Does a Taught Safeguard Survive Benign Personalization of a Vision-Language-Action Policy?}
+
+\author{Anonymous}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Fine-tuning on benign data measurably degrades refusal in aligned language models, and standard visual instruction tuning erodes the safety of vision-language models; whether an \emph{action-level} safeguard in a vision-language-action (VLA) policy survives benign personalization has not been tested. We install a refusal behavior in OpenVLA-7B by supervised LoRA training on paired scene states (harmful instruction $\to$ hold still; benign instruction $\to$ move), then personalize the policy on $N\in\{50,200\}$ unrelated benign demonstrations and re-measure refusal, over-refusal, old- and new-task success, and closed-loop contact with a static human hand, all on identical initial states, against a comparator trained without the safeguard. \todo{We find that \ldots\ refusal \ldots\ while contact \ldots\ and old-task success \ldots.} This is a single-seed pilot of a protocol; we release the paired-state evaluator, the patched contact predicate, and all instruction templates.
+\end{abstract}
+
+\section{Introduction}
+
+Safety behaviors installed by fine-tuning are known to be fragile under further fine-tuning. Qi et al.~\cite{qi2023finetuning} showed that one epoch of benign instruction data raises the harmfulness rate of aligned language models from near zero to 12--32\%; visual instruction tuning on largely benign data makes vision-language models less safe than their own language backbones~\cite{zong2024vlguard}; narrow fine-tuning on harmful data erodes multimodal alignment in vision-language agents~\cite{gulati2026narrow}; and benign personalization silently disables concept erasure in diffusion models~\cite{alam2025spqr}. Every one of these results concerns a model whose output is text or an image.
+
+Vision-language-action (VLA) policies produce robot actions, and the community has begun installing safety directly in their weights---by constrained reinforcement learning~\cite{safevla}, by safety-aware fine-tuning, or by supervised refusal data---and measuring it with closed-loop benchmarks that count physical violations~\cite{cui2026liberosafety}. Each of these works trains a safeguard once and evaluates the resulting checkpoint once. But a deployed policy is rarely a fixed checkpoint: the intended workflow for VLAs is personalization on a few dozen demonstrations of the user's own tasks. Whether an action-level safeguard survives that workflow is, to our knowledge, unmeasured. The recent finding that pretrained VLAs retain \emph{task} skills well under continued training~\cite{liu2026resistant,hu2026continual} holds under experience replay or on-policy RL; under plain supervised LoRA, the regime personalization actually uses, task forgetting is heavy, so neither retention nor loss of a safeguard can be assumed.
+
+Two features make this a different measurement from the text-model literature. First, refusal and harm are separate variables. A text model's refusal \emph{is} the outcome; a VLA's refusal is a no-op action, and harm is a contact event in closed loop. The two can come apart: a policy can lose its taught no-op without reaching the hazard, or reach the hazard while its first-step action still looks like a refusal. Second, a LIBERO-fine-tuned OpenVLA largely ignores its language input~\cite{liberoplus,liberopro}, so a safeguard must first be shown to be instruction-conditioned rather than a visual shortcut, which requires paired instructions on identical states and a blank-instruction control.
+
+We therefore ask: \emph{when an OpenVLA policy with a freshly installed, instruction-conditioned refusal is personalized on benign demonstrations of unrelated tasks, do its refusal rate, over-refusal rate, closed-loop hand-contact rate, and task competence change together or separately?} We report a single-seed pilot of a protocol designed to answer that question with four arms on identical initial states, and we state the outcome pattern we observed among the four that were possible before the runs.
+
+\section{Protocol}
+
+\paragraph{Substrate.}
+Policy $P$ is the released OpenVLA-7B LIBERO-Spatial checkpoint~\cite{kim2024openvla}, used with its native action normalization key throughout; old tasks are the ten LIBERO-Spatial tasks; the personalization suite is the ten LIBERO-Object tasks~\cite{liu2023libero}, whose objects and layouts are disjoint from the hazard scenes. Hazard scenes are the five static-hand tasks of LIBERO-Safety's free-space hand-object-avoidance suite at level~0~\cite{cui2026liberosafety}, which are LIBERO-10 layouts with a MANO hand holding an object placed in the workspace. We use the fork only for its scenes, assets, initial states and contact predicates; every rollout runs on OpenVLA's own robosuite controller pin. \todo{One sentence on the Issue~\#3 predicate fix and why the fork's published hand-suite collision rates are not used as baselines.}
+
+\paragraph{Paired states and instructions.}
+Each hazard task ships 50 deterministic initial states. Tasks 1--3 supply training states; tasks 4--5 (25 states each) are held out for every reported number. A state is paired with a \emph{harmful} instruction that targets the hand (e.g.\ ``push the hand out of the way''), a \emph{benign} instruction that performs the task while mentioning the hand (e.g.\ ``\{task\} without touching the hand''), and a \emph{blank} instruction. Training and test template families are disjoint; benign templates share vocabulary with harmful ones so that the word ``hand'' cannot serve as the refusal trigger. All templates are in the supplement.
+
+\paragraph{Installing the safeguard.}
+Arm $A$ is $P$ fine-tuned by LoRA (rank 32, $\alpha=16$, all linear modules, lr $5\times10^{-4}$, three epochs, effective batch 16, gradient clipping at 1.0) on 300 harmful no-op transitions, 300 movement transitions from $P$'s own violation-free rollouts under benign instructions on the training states, and 300 LIBERO-Spatial rehearsal transitions. The no-op label is physical zero encoded through the frozen normalization key---six pose tokens near bins 113/110/128/130/138/143, not six copies of the middle bin---with the gripper held at its current state. Comparator $C$ receives the same 600 movement and rehearsal rows and 300 additional movement rows in place of the no-ops, for the same number of updates. $C$ is the no-safeguard reference for whether personalization on its own makes the policy reach the hand.
+
+\paragraph{Personalization.}
+Each of $A$ and $C$ is merged into its backbone and personalized with a fresh rank-32 adapter, three epochs, no replay, on $N\in\{50,200\}$ LIBERO-Object demonstrations (5 or 20 per task, nested). The primary comparison is $A@200$ versus $A@0$; $C@200$ versus $C@0$ is reported alongside; $A@50$ is scored offline only.
+
+\paragraph{Measurements.}
+\emph{Refusal.} $\Ru$: fraction of held-out states on which all six generated pose tokens lie within one bin of the encoded zero under a harmful instruction (one bin $\approx$ 6--7\,mm translation, $\approx10^{-3}$\,rad rotation); $\Rs$: the same criterion under a benign instruction (over-refusal), excluding states where $P$ itself already refuses; blank: the same under an empty instruction. Two held-out templates per class, aggregated to one value per state ($n=50$). We also report the RoboShackles v2 criterion, $\max_i|a_i|<0.01$ in unnormalized units~\cite{roboshackles}, which coincides with ours on translation and is looser on rotation. \emph{Contact.} On the same 50 states, each of $A@0,A@200,C@0,C@200$ runs a closed-loop episode under a harmful and under a benign instruction; an episode is a violation if the patched \texttt{CheckRobotContact} predicate fires against the hand object at any step, at which point the episode terminates. Timeouts are task failures, never safety successes. Each episode is also classified as held-all-steps / moved-without-contact / contact / timeout / success. \emph{Utility.} Success on all ten LIBERO-Spatial and all ten LIBERO-Object tasks at $A@0$ and $A@200$, five fixed initial states per task. \emph{Uncertainty.} Wilson intervals per arm; for the paired comparison, discordant-pair counts with an exact McNemar test and a percentile bootstrap over states, all conditional on the single trained chain.
+
+\paragraph{What is not claimed.}
+One model, one recipe, one alignment seed, simulation only, a static hand, two held-out layouts, a freshly installed safeguard rather than an inherited one, and no benign-stopping comparator: a difference between refusal loss and any other taught behavior's loss is not measured here.
+
+\section{Results}
+\todo{Fig.~1: $\Ru$, $\Rs$, blank, $U_{\mathrm{old}}$, $U_{\mathrm{new}}$ at $A@0$, $A@50$, $A@200$. Fig.~2: contact rates for four arms $\times$ two instruction classes with discordant-pair counts. Table~1: transitions and updates per arm, endpoints.}
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.48\linewidth]{../figures/fig1_refusal.pdf}\hfill
+\includegraphics[width=0.48\linewidth]{../figures/fig2_contact.pdf}
+\caption{\todo{Left: refusal, over-refusal and blank-instruction rates per state ($n=50$, Wilson 95\%). Right: episodes with hand contact under harmful and benign instructions, four arms.}}
+\end{figure}
+
+\begin{table}[t]\centering\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Arm & transitions & updates & $\Ru$ & $\Rs$ & contact (harmful) & $U_{\mathrm{old}}$ / $U_{\mathrm{new}}$ \\
+\midrule
+$P$ & -- & -- & \todo{} & \todo{} & \todo{} & \todo{} / -- \\
+$A@0$ & 900 & \todo{} & & & & \\
+$A@50$ & \todo{} & \todo{} & & & -- & -- \\
+$A@200$ & \todo{} & \todo{} & & & & \\
+$C@0$ & 900 & \todo{} & & & & -- \\
+$C@200$ & \todo{} & \todo{} & & & & -- \\
+\bottomrule
+\end{tabular}
+\caption{\todo{Budgets and endpoints. The ratio of no-op transitions to benign personalization transitions is the mechanism under test.}}
+\end{table}
+
+\section{Interpretation and limitations}
+\todo{State which of the four pre-declared patterns was observed: (i) useful adaptation with higher contact; (ii) refusal loss without higher contact; (iii) general competence degradation (old-task loss with everything else); (iv) safeguard retained under useful adaptation. Report the merge$\to$reload agreement, the number of alignment attempts before the reported one, whether the contact predicate covers carried objects (else contact is a lower bound), and that $\Ru$/$\Rs$ are first-step open-loop proxies while contact is the closed-loop outcome.}
+
+\bibliographystyle{corlabbrvnat}
+\bibliography{refs}
+\end{document}

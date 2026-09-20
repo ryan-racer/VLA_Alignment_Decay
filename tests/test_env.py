@@ -13,6 +13,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+pytestmark = pytest.mark.gpu  # whole module is pod-only
+
 P_DIR = Path(os.environ.get("FTR_P_DIR", "/workspace/hf/P"))
 FSHOA_L0_TASK = 0  # any FSHOA L0 task; only used for the determinism check
 

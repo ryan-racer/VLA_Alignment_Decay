@@ -13,7 +13,6 @@ Physical zero is NOT bin 128 under a q01/q99 key; see zero_bins().
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -25,20 +24,9 @@ UNNORM_KEY = "libero_spatial"
 
 
 def _action_tokenizer_cls():
-    # `import prismatic` pulls in the RLDS stack (tensorflow via dlimp), which the Mac does not have.
-    # Load the 70-line module by path instead; identical code on the Mac and the pod.
-    import sys
+    from ftr._openvla import action_tokenizer_cls
 
-    for root in sys.path:
-        path = Path(root) / "prismatic" / "vla" / "action_tokenizer.py"
-        if path.exists():
-            break
-    else:
-        raise ImportError("openvla checkout not on sys.path (need <openvla>/prismatic/vla/action_tokenizer.py)")
-    spec = importlib.util.spec_from_file_location("prismatic_action_tokenizer", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.ActionTokenizer
+    return action_tokenizer_cls()
 
 
 def p_dir() -> Path:
