@@ -24,7 +24,7 @@ Last updated: 20 September 2026 — **Phase 0 complete** (IMPLEMENTATION.md § B
 - `ftr/finetune.py` — stock loop + the five edits, single-GPU. **Blind.**
 - `scripts/train_A.sh`, `train_C.sh`, `personalize.sh` — the command lines.
 - `tests/test_env.py` (12), `test_fixtures.py` (4), `test_parity.py` (2), `test_reload.py` (2) — collected, never run.
-- `manifests/instructions.csv` — draft, **needs Ryan's edit**.
+- `manifests/instructions.csv` — final: 4+2 harmful (4 verb families, unseen test verbs), 4+2 benign (all mention the hand; one hard negative), blank. Rationale in manifests/README.md.
 - `paper/main.tex` — §1–2 drafted, §3–4 placeholders; not compiled (no LaTeX on the Mac).
 
 ## Phase 1 checklist (one ~2 h pod session, then stop the pod, keep the volume)
