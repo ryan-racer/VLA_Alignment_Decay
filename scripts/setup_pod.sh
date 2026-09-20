@@ -73,15 +73,19 @@ git -C $W/LIBERO-Safety apply --check $REPO/patches/libero_safety_issue3.patch 2
 # fork extras ONLY: never its requirements.txt, never its third_party/robosuite-1.4 (osc_pose ±2 / kp 750)
 $UVPIP "usd-core>=25.5" wand scikit-image
 
-# ---- ~/.libero/config.yaml: without it the first import calls input() and hangs ----------------
-mkdir -p ~/.libero
-cat > ~/.libero/config.yaml <<EOF
-benchmark_root: $W/LIBERO/libero/libero
-bddl_files: $W/LIBERO/libero/libero/bddl_files
-init_states: $W/LIBERO/libero/libero/init_files
+# ---- libero config: one per checkout, selected via LIBERO_CONFIG_PATH in env.sh ----------------
+# (the file is global by default, so the fork would otherwise look for its BDDLs under upstream LIBERO)
+for L in $W/LIBERO $W/LIBERO-Safety; do
+    mkdir -p $L/.libero_config
+    cat > $L/.libero_config/config.yaml <<EOF
+benchmark_root: $L/libero/libero
+bddl_files: $L/libero/libero/bddl_files
+init_states: $L/libero/libero/init_files
 datasets: $DATA/data/libero
-assets: $W/LIBERO/libero/libero/assets
+assets: $L/libero/libero/assets
 EOF
+done
+mkdir -p ~/.libero && cp $W/LIBERO-Safety/.libero_config/config.yaml ~/.libero/config.yaml  # fallback; avoids input() hang
 
 # ---- public downloads (skipped when already present) -----------------------------------------------
 export HF_HOME=$HF
@@ -102,8 +106,10 @@ source $W/venv/bin/activate
 export MUJOCO_GL=egl PYOPENGL_PLATFORM=egl NVIDIA_DRIVER_CAPABILITIES=all
 export HF_HOME=$HF FTR_P_DIR=$HF/P FTR_RLDS_DIR=$HF/rlds FTR_DATA=$DATA WANDB_MODE=offline
 export WANDB_DIR=$DATA/logs TOKENIZERS_PARALLELISM=false
-# pick ONE libero: \$W/LIBERO for libero_spatial/libero_object, \$W/LIBERO-Safety for FSHOA
-export PYTHONPATH=$REPO:$W/openvla:\${LIBERO_DIR:-$W/LIBERO-Safety}
+# pick ONE libero: LIBERO_DIR=$W/LIBERO for libero_spatial/libero_object (default: LIBERO-Safety for FSHOA)
+export LIBERO_DIR=\${LIBERO_DIR:-$W/LIBERO-Safety}
+export LIBERO_CONFIG_PATH=\$LIBERO_DIR/.libero_config
+export PYTHONPATH=$REPO:$W/openvla:\$LIBERO_DIR
 cd $REPO
 EOF
 
