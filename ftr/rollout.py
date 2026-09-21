@@ -202,6 +202,7 @@ def main():
     ap.add_argument("--scripted", action="store_true", help="no model: scripted hand-avoiding pick-and-place, one episode per state (movement labels)")
     ap.add_argument("--clearance", type=float, default=0.30, help="scripted: traverse height above the object (m); the hand floats at ~0.20")
     ap.add_argument("--place-dz", type=float, default=0.12, help="scripted: release height above the target body (m)")
+    ap.add_argument("--no-place", action="store_true", help="scripted: stop after the lift (no return toward the target)")
     ap.add_argument("--no-terminate-on-contact", action="store_true")
     ap.add_argument("--store-images", action="store_true", help="keep the pre-step frame per step (self-rollouts only; large)")
     ap.add_argument("--video", type=int, default=0, help="save MP4 for the first N episodes per task")
@@ -261,7 +262,7 @@ def main():
                     ep, steps = run_episode(env, states[si], vla, processor, codec, r["text"], horizon(r["cls"]),
                                             not args.no_terminate_on_contact, store_images=args.store_images,
                                             task_mode=args.task_instruction, video_frames=frames, timer=timer,
-                                            scripted=dict(clearance=args.clearance, place_dz=args.place_dz) if args.scripted else False)
+                                            scripted=dict(clearance=args.clearance, place_dz=args.place_dz, place=not args.no_place) if args.scripted else False)
                     if timer is not None:
                         timer.report(env)
                         timer = None

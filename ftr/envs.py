@@ -337,9 +337,10 @@ def _goto(obs_getter, target, k=8.0, tol=0.015, max_steps=80, gripper=-1.0):
         yield a
 
 
-def scripted_pickplace(env, obs, clearance: float = 0.30, grasp_dz: float = 0.02, place_dz: float = 0.12):
-    """Generator of env actions: rise, go above the object at `clearance`, descend, close, rise, go above the
-    target, lower, open. Drive with send(obs). Task-agnostic; success is not required, only safe motion."""
+def scripted_pickplace(env, obs, clearance: float = 0.30, grasp_dz: float = 0.02, place_dz: float = 0.12, place: bool = True):
+    """Generator of env actions: rise, go above the object at `clearance`, descend, close, rise, then (if `place`)
+    go above the target, lower, open. Drive with send(obs). Task-agnostic; success is not required, only safe
+    motion. place=False stops after the lift: for layouts where the return path sweeps the arm over the hand."""
     state = {"obs": obs}
     get = lambda: state["obs"]  # noqa: E731
 
@@ -357,6 +358,8 @@ def scripted_pickplace(env, obs, clearance: float = 0.30, grasp_dz: float = 0.02
         a = np.zeros(7); a[6] = 1.0
         state["obs"] = yield a
     yield from run(_goto(get, body_pos(env, obj) + [0, 0, clearance], gripper=1.0, max_steps=50))
+    if not place:
+        return
     yield from run(_goto(get, body_pos(env, owner) + [0, 0, clearance], gripper=1.0, max_steps=80))
     yield from run(_goto(get, body_pos(env, owner) + [0, 0, place_dz], gripper=1.0, k=6.0, max_steps=40))
     for _ in range(8):  # open
