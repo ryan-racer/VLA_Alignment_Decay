@@ -13,7 +13,8 @@ set -o pipefail
 source $W/env.sh
 L=$DATA/logs/phase2; mkdir -p $L; R=$DATA/runs; D=$DATA/data
 # Checkpoints go to the LOCAL disk: a merged 7B checkpoint is ~15 GB and Drive is 10 GB. Results (parquet, videos,
-# DONE markers) stay on Drive. If the runtime dies, checkpoints are retrained (A/C: minutes; N200: ~2 h).
+# DONE markers) and the LoRA adapters stay on Drive. If the runtime dies, merged checkpoints are rebuilt from the
+# saved adapters (deterministic, ~2 min each); only a training that was in flight is redone.
 CKPTS=$W/ckpt; mkdir -p $CKPTS; echo "local disk: $(df -h $W | tail -1 | awk '{print $4" free of "$2}')"
 FILT='^\[|timing|passed|failed|Traceback|Error|wrote|violation-free|move_rows|arm [AC]:|updates total|done:|exit [0-9]'
 # wait for any rollout/training already running (e.g. the notebook's P baseline) rather than killing it
@@ -44,10 +45,19 @@ rollout() {  # rollout <out-dir> <log-name> <args...>
     local out=$1 log=$2; shift 2
     python -m ftr.rollout --resume --out $out "$@" 2>&1 | tee $L/$log.log | grep --line-buffered -E "$FILT"
 }
-train() {  # train <run_id> <vla_path> <parquet>
-    python -m ftr.finetune --vla_path $2 --data_parquet $3 --run_root_dir $CKPTS --run_id $1 --adapter_tmp_dir $CKPTS/adapters \
+train() {  # train <run_id> <vla_path> <parquet> : adapters go to Drive ($R/adapters, a few hundred MB each); if one
+    # already exists the merged checkpoint is rebuilt from it (deterministic) instead of retraining (not deterministic)
+    local extra=""; [ -f $R/adapters/$1/adapter_config.json ] && { echo "   re-merging saved adapter $1"; extra="--merge_only true"; }
+    python -m ftr.finetune --vla_path $2 --data_parquet $3 --run_root_dir $CKPTS --run_id $1 --adapter_tmp_dir $R/adapters $extra \
         --epochs 3 --batch_size 8 --grad_accumulation_steps 2 --learning_rate 5e-4 --lora_rank 32 --seed 0 \
-        2>&1 | tee $L/train_$1.log | grep --line-buffered -E "rows|updates|Saving|done|Traceback|Error|trainable"
+        2>&1 | tee -a $L/train_$1.log | grep --line-buffered -E "rows|updates|Saving|done|Traceback|Error|trainable|re-merg"
+}
+rescue_adapters() {  # adapters trained before adapters lived on Drive: copy any local one to Drive (atomic)
+    for d in $CKPTS/adapters/*/; do [ -d "$d" ] || continue; x=$(basename $d)
+        [ -f $R/adapters/$x/adapter_config.json ] && continue
+        mkdir -p $R/adapters && cp -r $d $R/adapters/.$x.tmp && cp $CKPTS/$x/dataset_statistics.json $R/adapters/.$x.tmp/ 2>/dev/null \
+            && mv $R/adapters/.$x.tmp $R/adapters/$x && echo "   saved adapter $x to Drive" || rm -rf $R/adapters/.$x.tmp
+    done
 }
 score() { python -m ftr.score --ckpt $CKPTS/$1 --pairs $D/pairs_test.parquet --out $R/$1/score_test 2>&1 | tee $L/score_$1.log | tail -6; }
 HAZ="--suite obstacle_avoidance_human --tasks 3 4 --states 0-24 --classes harmful benign --templates h5 b5 --video 2"
@@ -67,7 +77,8 @@ sync_logs
 # ================================ B. align + gate ===================================================
 need $D/A.parquet && stage "train_A" $CKPTS/A_s0/DONE train A_s0 $FTR_P_DIR $D/A.parquet
 need $D/C.parquet && stage "train_C" $CKPTS/C_s0/DONE train C_s0 $FTR_P_DIR $D/C.parquet
-need $CKPTS/A_s0/DONE && stage "reload_A" $L/b2_reload.ok bash -c "FTR_RUN=$CKPTS/A_s0 FTR_ADAPTER=$CKPTS/adapters/A_s0 FTR_PAIRS=$D/pairs_test.parquet pytest tests/test_reload.py -m gpu -v 2>&1 | tee $L/b2_reload.log | tail -5; grep -q '2 passed' $L/b2_reload.log && touch $L/b2_reload.ok"
+rescue_adapters
+need $CKPTS/A_s0/DONE && stage "reload_A" $L/b2_reload.ok bash -c "FTR_RUN=$CKPTS/A_s0 FTR_ADAPTER=$R/adapters/A_s0 FTR_PAIRS=$D/pairs_test.parquet pytest tests/test_reload.py -m gpu -v 2>&1 | tee $L/b2_reload.log | tail -5; grep -q '2 passed' $L/b2_reload.log && touch $L/b2_reload.ok"
 for CK in A_s0 C_s0; do need $CKPTS/$CK/DONE && stage "score_$CK" $R/$CK/score_test/predictions.parquet score $CK; done
 for CK in A_s0 C_s0; do need $CKPTS/$CK/DONE && stage "dev_$CK" $R/$CK/dev/DONE rollout $R/$CK/dev b4_dev_$CK --ckpt $CKPTS/$CK --suite obstacle_avoidance_human --tasks 0 1 2 --states 30-36 --classes harmful benign --templates h5 b5; done
 sync_logs
@@ -88,6 +99,7 @@ sync_logs
 need $CKPTS/A_s0/DONE $D/object_N200_p0.parquet && stage "personalize_A200" $CKPTS/A_s0_N200_p0/DONE train A_s0_N200_p0 $CKPTS/A_s0 $D/object_N200_p0.parquet
 need $CKPTS/C_s0/DONE $D/object_N200_p0.parquet && stage "personalize_C200" $CKPTS/C_s0_N200_p0/DONE train C_s0_N200_p0 $CKPTS/C_s0 $D/object_N200_p0.parquet
 need $CKPTS/A_s0/DONE $D/object_N50_p0.parquet  && stage "personalize_A50"  $CKPTS/A_s0_N50_p0/DONE  train A_s0_N50_p0  $CKPTS/A_s0 $D/object_N50_p0.parquet
+rescue_adapters
 sync_logs
 for CK in A_s0_N50_p0 A_s0_N200_p0 C_s0_N200_p0; do need $CKPTS/$CK/DONE && stage "score_$CK" $R/$CK/score_test/predictions.parquet score $CK; done
 if need $CKPTS/A_s0_N200_p0/DONE $CKPTS/C_s0_N200_p0/DONE; then

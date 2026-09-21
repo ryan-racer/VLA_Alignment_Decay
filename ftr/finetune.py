@@ -68,6 +68,8 @@ class FinetuneConfig:
     lora_rank: int = 32
     lora_dropout: float = 0.0
 
+    merge_only: bool = False                          # skip training: re-merge a saved adapter into vla_path (deterministic;
+                                                      # used after a Colab runtime death took the local merged checkpoint)
     wandb_project: str = "ftr"
     wandb_entity: Optional[str] = None
     # fmt: on
@@ -108,6 +110,11 @@ def finetune(cfg: FinetuneConfig) -> None:
     AutoModelForVision2Seq.register(OpenVLAConfig, OpenVLAForActionPrediction)
 
     processor = AutoProcessor.from_pretrained(cfg.vla_path, trust_remote_code=True)
+    if cfg.merge_only:
+        assert (adapter_dir / "adapter_config.json").exists(), f"no adapter at {adapter_dir}"
+        stats = json.loads((adapter_dir / "dataset_statistics.json").read_text())
+        _merge_and_save(cfg, processor, run_dir, adapter_dir, stats, "merged-from-adapter")
+        return
     vla = AutoModelForVision2Seq.from_pretrained(
         cfg.vla_path, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True, trust_remote_code=True
     ).to(device_id)
@@ -203,20 +210,28 @@ def finetune(cfg: FinetuneConfig) -> None:
 
     # --- changes 4 + 5: save once -------------------------------------------------------------
     print(f"Saving adapter to {adapter_dir} and merged model to {run_dir}")
+    # LoRA weights only (embeddings are not targets; without them the adapter is a few hundred MB and fits on Drive)
+    vla.save_pretrained(adapter_dir, save_embedding_layers=False)
+    (adapter_dir / "dataset_statistics.json").write_text(json.dumps(vla_dataset.dataset_statistics, indent=2))
+    _merge_and_save(cfg, processor, run_dir, adapter_dir, vla_dataset.dataset_statistics, f"{gradient_step_idx}\nrows={len(vla_dataset)}")
+
+
+def _merge_and_save(cfg, processor, run_dir: Path, adapter_dir: Path, stats: dict, updates: str) -> None:
+    """base(vla_path) + adapter -> merged checkpoint in run_dir with exactly one norm_stats key, the *_prismatic.py
+    files beside it, and a DONE marker. Deterministic, so a lost merged checkpoint is rebuilt bit-identically."""
     processor.save_pretrained(run_dir)
-    vla.save_pretrained(adapter_dir)
     base_vla = AutoModelForVision2Seq.from_pretrained(
         cfg.vla_path, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True, trust_remote_code=True
     )
     merged_vla = PeftModel.from_pretrained(base_vla, adapter_dir).merge_and_unload()
-    merged_vla.config.norm_stats = vla_dataset.dataset_statistics  # exactly one key: libero_spatial
+    merged_vla.config.norm_stats = stats  # exactly one key: libero_spatial
     merged_vla.save_pretrained(run_dir)
     src = Path(OpenVLAForActionPrediction.__module__.replace(".", "/")).parent  # prismatic/extern/hf
     root = next(p for p in map(Path, os.sys.path) if (Path(p or ".") / "prismatic").exists())
     for f in ("configuration_prismatic.py", "modeling_prismatic.py", "processing_prismatic.py"):
         shutil.copy(root / src / f, run_dir / f)
-    (run_dir / "DONE").write_text(f"updates={gradient_step_idx}\nrows={len(vla_dataset)}\nkey={UNNORM_KEY}\n")
-    print(f"done: {gradient_step_idx} updates")
+    (run_dir / "DONE").write_text(f"updates={updates}\nkey={UNNORM_KEY}\n")
+    print(f"done: {updates.splitlines()[0]} updates")
 
 
 if __name__ == "__main__":
