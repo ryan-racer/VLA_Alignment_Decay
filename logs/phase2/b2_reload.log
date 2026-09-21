@@ -1,0 +1,7 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.21, pytest-9.1.1, pluggy-1.6.0 -- /content/ftr/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /content/ftr/repo
+configfile: pytest.ini
+plugins: typeguard-2.13.3
+collecting ... 

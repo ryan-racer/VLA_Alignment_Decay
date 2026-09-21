@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/root/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/root/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/content/ftr/repo/ftr/rollout.py", line 33, in <module>
+    import torch
+  File "/content/ftr/venv/lib/python3.10/site-packages/torch/__init__.py", line 237, in <module>
+    from torch._C import *  # noqa: F403
+KeyboardInterrupt
