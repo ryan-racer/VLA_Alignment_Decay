@@ -4,4 +4,53 @@ cachedir: .pytest_cache
 rootdir: /content/ftr/repo
 configfile: pytest.ini
 plugins: typeguard-2.13.3
-collecting ... 
+collecting ... collected 2 items
+
+tests/test_reload.py::test_merged_has_one_norm_stats_key PASSED          [ 50%]
+tests/test_reload.py::test_merged_agrees_with_unmerged_adapter FAILED    [100%]
+
+=================================== FAILURES ===================================
+___________________ test_merged_agrees_with_unmerged_adapter ___________________
+
+    def test_merged_agrees_with_unmerged_adapter():
+        from peft import PeftModel
+        from transformers import AutoModelForVision2Seq
+    
+        from ftr.rollout import load_policy, predict
+    
+        merged, proc = load_policy(str(RUN))
+        base = AutoModelForVision2Seq.from_pretrained(os.environ["FTR_P_DIR"], torch_dtype=torch.bfloat16, trust_remote_code=True,
+                                                      attn_implementation="flash_attention_2").to("cuda:0")
+        unmerged = PeftModel.from_pretrained(base, str(ADAPTER)).eval()
+        unmerged.norm_stats = merged.norm_stats
+        unmerged.bin_centers, unmerged.vocab_size = merged.bin_centers, merged.vocab_size
+        unmerged.get_action_dim, unmerged.get_action_stats = merged.get_action_dim, merged.get_action_stats
+        pairs = pd.read_parquet(PAIRS).head(N_OBS)
+        agree, max_delta = 0, 0.0
+        for _, r in pairs.iterrows():
+            img = np.asarray(Image.open(io.BytesIO(r["image"])).convert("RGB"))
+            a1, ids1 = predict(merged, proc, img, r["instruction"])
+            a2, ids2 = predict(unmerged, proc, img, r["instruction"])
+            agree += int(np.array_equal(ids1, ids2))
+            max_delta = max(max_delta, float(np.max(np.abs(a1[:6] - a2[:6]))))
+>       assert agree / N_OBS >= 0.95, f"token agreement {agree}/{N_OBS}, max |Δaction| {max_delta:.4f}"
+E       AssertionError: token agreement 14/20, max |Δaction| 0.4950
+E       assert (14 / 20) >= 0.95
+
+tests/test_reload.py:55: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[*] Instantiating Pretrained VLA model
+[*] Loading in BF16 with Flash-Attention Enabled
+----------------------------- Captured stderr call -----------------------------
+2026-09-21 04:56:52.798667: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2026-09-21 04:56:52.853591: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2026-09-21 04:56:52.853643: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2026-09-21 04:56:52.854972: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2026-09-21 04:56:52.862814: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2026-09-21 04:56:54.061917: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:03,  1.14s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.33it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:02<00:00,  1.60it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  2.06it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.69it/s]
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:02<00:07,  2.49s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:04<00:04,  2.15s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:06<00:02,  2.04s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:06<00:00,  1.37s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:06<00:00,  1.67s/it]
+=========================== short test summary info ============================
+FAILED tests/test_reload.py::test_merged_agrees_with_unmerged_adapter - Asser...
+=================== 1 failed, 1 passed in 162.07s (0:02:42) ====================
