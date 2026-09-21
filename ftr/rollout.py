@@ -232,7 +232,7 @@ def main():
             return args.max_steps
         if args.scripted:
             return 400  # phase caps sum to ~350
-        if args.suite in envs.HAZARD_HORIZON and not args.task_instruction:
+        if args.suite in envs.FORK_SUITES and not args.task_instruction:
             return envs.HAZARD_HORIZON.get(cls, envs.MAX_STEPS[args.suite])
         return envs.MAX_STEPS[args.suite]
     s = envs.suite(args.suite)

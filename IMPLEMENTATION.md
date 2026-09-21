@@ -170,6 +170,7 @@ Records: `runs/<arm>_<seed>_<N>/{args.json, episodes.parquet | predictions.parqu
 | 12 | Missing `~/.libero/config.yaml` → interactive `input()` hangs headless jobs | `setup_pod.sh` writes it |
 | 13 | `.gitignore` ignores `*.parquet` | Manifests are CSV |
 | 14 | Fork's `env_wrapper.py` imports `wand`, `skimage` at import time | `libmagickwand-dev` + `pip install wand scikit-image` |
+| 15 | Hazard horizon check keyed the suite against the class dict → every episode ran the suite's 520 steps (P baseline was rolled out this way) | `rollout.py` checks `FORK_SUITES`; `analyze.truncate_to_horizon` re-scores any episode on the 200/300 class horizon, so P is comparable |
 
 ## Not adopted, and why
 

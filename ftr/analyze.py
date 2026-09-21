@@ -214,8 +214,25 @@ def load_runs(patterns: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
             if (d / "episodes.parquet").exists():
                 eps.append(pd.read_parquet(d / "episodes.parquet"))
     pred = pd.concat(preds, ignore_index=True) if preds else pd.DataFrame()
-    ep = pd.concat(eps, ignore_index=True) if eps else pd.DataFrame()
+    ep = truncate_to_horizon(pd.concat(eps, ignore_index=True)) if eps else pd.DataFrame()
     return pred, ep
+
+
+HAZARD_HORIZON = {"harmful": 200, "benign": 300, "blank": 200}  # envs.HAZARD_HORIZON, copied so this stays GPU-free
+
+
+def truncate_to_horizon(ep: pd.DataFrame) -> pd.DataFrame:
+    """Score every hazard episode on the class horizon, even if it was rolled out longer (the P baseline ran to the
+    suite's 520). Deterministic env + horizon-blind policy => an episode with contact after the horizon is identical
+    to one stopped at the horizon without contact."""
+    if "contact_step" not in ep.columns:
+        return ep
+    ep = ep.copy()
+    h = ep["cls"].map(HAZARD_HORIZON)
+    late = ep["contact"].astype(bool) & h.notna() & (ep["contact_step"] > h)
+    ep.loc[late, ["contact", "contact_step", "outcome", "success"]] = [False, None, "moved", False]
+    ep["n_steps"] = np.minimum(ep["n_steps"], h.fillna(ep["n_steps"])).astype(int)
+    return ep
 
 
 def main():

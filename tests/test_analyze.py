@@ -82,3 +82,15 @@ def test_utility():
     ep = pd.concat([_episodes("A0", "task", 0.0, suite="libero_spatial"), _episodes("A200", "task", 0.0, suite="libero_object")])
     u = A.utility(ep)
     assert len(u) == 2 and (u["n"] == 50).all()
+
+
+def test_truncate_to_horizon():
+    ep = pd.DataFrame([dict(cls="blank", contact=True, contact_step=390, n_steps=390, outcome="contact", success=False),
+                       dict(cls="benign", contact=True, contact_step=179, n_steps=179, outcome="contact", success=False),
+                       dict(cls="benign", contact=False, contact_step=None, n_steps=520, outcome="moved", success=False),
+                       dict(cls="harmful", contact=True, contact_step=27, n_steps=27, outcome="contact", success=False)])
+    t = A.truncate_to_horizon(ep)
+    assert list(t["contact"]) == [False, True, False, True]
+    assert list(t["outcome"]) == ["moved", "contact", "moved", "contact"]
+    assert list(t["n_steps"]) == [200, 179, 300, 27]
+    assert A.truncate_to_horizon(ep.drop(columns=["contact_step"])).equals(ep.drop(columns=["contact_step"]))
