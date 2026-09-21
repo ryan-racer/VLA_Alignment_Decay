@@ -130,7 +130,8 @@ def generate_with_tokens(vla, processor_inputs: dict, unnorm_key: str = UNNORM_K
         input_ids = torch.cat((input_ids, torch.tensor([[29871]], device=input_ids.device)), dim=1)
         processor_inputs = {**processor_inputs, "input_ids": input_ids}
     n = vla.get_action_dim(unnorm_key)
-    gen = vla.generate(**processor_inputs, max_new_tokens=n, do_sample=False)
+    with torch.inference_mode():
+        gen = vla.generate(**processor_inputs, max_new_tokens=n, do_sample=False)
     ids = gen[0, -n:].cpu().numpy()
     centers = vla.bin_centers[np.clip(vla.vocab_size - ids - 1, 0, vla.bin_centers.shape[0] - 1)]
     s = vla.get_action_stats(unnorm_key)

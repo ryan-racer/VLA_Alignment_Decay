@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -49,13 +50,19 @@ def load_policy(ckpt: str):
     return vla, get_processor(cfg)
 
 
-def predict(vla, processor, img: np.ndarray, instruction: str):
+def predict(vla, processor, img: np.ndarray, instruction: str, timer=None):
     """One model step on a 224x224 uint8 image -> (unnormalized action, 7 token ids)."""
     from PIL import Image
 
+    t0 = time.perf_counter()
     inputs = processor(PROMPT.format(instruction=instruction.lower()), Image.fromarray(img).convert("RGB"))
     inputs = inputs.to("cuda:0", dtype=torch.bfloat16)  # BatchFeature.to casts float tensors only
-    return generate_with_tokens(vla, dict(inputs), UNNORM_KEY)
+    t1 = time.perf_counter()
+    out = generate_with_tokens(vla, dict(inputs), UNNORM_KEY)
+    if timer is not None:
+        timer.add("processor+to_cuda", t1 - t0)
+        timer.add("generate+decode", time.perf_counter() - t1)
+    return out
 
 
 def to_env_action(action_model: np.ndarray) -> np.ndarray:
@@ -104,7 +111,7 @@ def to_model_action(action_env: np.ndarray) -> np.ndarray:
 
 
 def run_episode(env, state, vla, processor, codec, instruction, max_steps, terminate_on_contact,
-                store_images=False, task_mode=False, video_frames=None, scripted=False):
+                store_images=False, task_mode=False, video_frames=None, scripted=False, timer=None):
     """Restore state, step the policy up to max_steps, stop on contact/success -> (episode dict, per-step rows).
     Per-step rows carry the PRE-step frame, the pre-step gripper state, and the action taken from that frame.
     scripted=True runs envs.scripted_pickplace instead of the model (movement labels; no GPU)."""
@@ -113,8 +120,12 @@ def run_episode(env, state, vla, processor, codec, instruction, max_steps, termi
     steps, contact_step, success = [], None, False
     gen = envs.scripted_pickplace(env, obs) if scripted else None
     pending = next(gen) if scripted else None
+    any_contact = False
     for t in range(max_steps):
+        t0 = time.perf_counter()
         img = envs.model_image(obs)
+        if timer is not None:
+            timer.add("model_image", time.perf_counter() - t0)
         if video_frames is not None:
             video_frames.append(img)
         if scripted:
@@ -124,17 +135,23 @@ def run_episode(env, state, vla, processor, codec, instruction, max_steps, termi
             action_model = to_model_action(action_env)
             ids = codec.to_token_ids(codec.normalize(action_model))
         else:
-            action_model, ids = predict(vla, processor, img, instruction)
+            action_model, ids = predict(vla, processor, img, instruction, timer=timer)
             action_env = to_env_action(action_model)
         g_id = int(codec.to_token_ids(codec.noop_label(g_pre))[6])
         row = dict(t=t, token_ids=ids.astype(np.int64).tolist(), action_model=action_model.tolist(),
                    action_env=action_env.tolist(), gripper_state=g_pre,
                    refused_k1=codec.refused(ids, 1), refused_k1_gripper=codec.refused(ids, 1, gripper_expected_id=g_id))
         if store_images:
+            t0 = time.perf_counter()
             row["image"] = image_to_png_bytes(img)
-        obs, success, costs, _ = envs.step(env, action_env)
+            if timer is not None:
+                timer.add("png", time.perf_counter() - t0)
+        obs, success, costs, _ = envs.step(env, action_env, timer=timer)
+        if timer is not None:
+            timer.n += 1
         row.update({f"cost_{k}": v for k, v in costs.items()})
         steps.append(row)
+        any_contact |= envs.any_contact(costs)
         g_pre = envs.gripper_rlds_from_env_action(action_env)
         if scripted:
             try:
@@ -162,7 +179,7 @@ def run_episode(env, state, vla, processor, codec, instruction, max_steps, termi
     else:
         outcome = "moved"  # ran the horizon, moved, never touched the hand: PLAN's moved-without-contact
     ep = dict(success=bool(success) and contact_step is None, contact=contact_step is not None, contact_step=contact_step,
-              held_all_steps=held, n_steps=n, outcome=outcome,
+              any_contact=any_contact, held_all_steps=held, n_steps=n, outcome=outcome,
               refused_first_step=bool(steps[0]["refused_k1_gripper"]) if steps else None,
               frac_steps_refused=float(np.mean([s["refused_k1_gripper"] for s in steps])) if steps else None)
     return ep, steps
@@ -188,6 +205,7 @@ def main():
     ap.add_argument("--video", type=int, default=0, help="save MP4 for the first N episodes per task")
     ap.add_argument("--out", required=True)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--resume", action="store_true", help="skip (state, template) pairs already in episodes.parquet")
     args = ap.parse_args()
 
     from experiments.robot.robot_utils import set_seed_everywhere
@@ -195,6 +213,9 @@ def main():
     set_seed_everywhere(args.seed)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    if (out / "DONE").exists():
+        print(f"{out}: already DONE ({(out / 'DONE').read_text().strip()})")
+        return
     sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     (out / "args.json").write_text(json.dumps({**vars(args), "git_sha": sha, "started": time.strftime("%F %T")}, indent=2))
 
@@ -212,19 +233,34 @@ def main():
     s = envs.suite(args.suite)
     task_ids = list(range(envs.n_tasks(s, args.level))) if args.tasks == ["all"] else [int(t) for t in args.tasks]
 
-    episodes, t0 = [], time.time()
+    episodes, done_keys = [], set()
+    if args.resume and (out / "episodes.parquet").exists():
+        prev = pd.read_parquet(out / "episodes.parquet")
+        episodes = prev.to_dict("records")
+        done_keys = set(zip(prev["state_id"], prev["template_id"]))
+        print(f"resuming after {len(episodes)} episodes", flush=True)
+    n_new, t0, run_tag = 0, time.time(), ("_r%d" % int(time.time())) if done_keys else ""
     for task_idx in task_ids:
         bddl, states, language = envs.task_bddl_and_states(args.suite, task_idx, args.level)
         env = envs.make_env(bddl)
         rows = [dict(cls="benign", template_id="scripted", text=language)] if args.scripted else instruction_rows(args, language)
         task_steps, n_videos = [], 0
+        timer = envs.StepTimer() if n_new == 0 and not done_keys else None  # first episode of the run only
+        if timer is not None:
+            timer.wrap_cameras(env)
         try:
             for si in parse_states(args.states, len(states)):
                 for r in rows:
+                    if (f"{args.suite}/{args.level}/{task_idx}/{si}", r["template_id"]) in done_keys:
+                        continue
                     frames = [] if n_videos < args.video else None
                     ep, steps = run_episode(env, states[si], vla, processor, codec, r["text"], horizon(r["cls"]),
                                             not args.no_terminate_on_contact, store_images=args.store_images,
-                                            task_mode=args.task_instruction, video_frames=frames, scripted=args.scripted)
+                                            task_mode=args.task_instruction, video_frames=frames, scripted=args.scripted, timer=timer)
+                    if timer is not None:
+                        timer.report(env)
+                        timer = None
+                    n_new += 1
                     meta = dict(ckpt=args.ckpt, suite=args.suite, level=args.level, task_idx=task_idx, task=language,
                                 state_idx=si, state_id=f"{args.suite}/{args.level}/{task_idx}/{si}",
                                 cls=r["cls"], template_id=r["template_id"], instruction=r["text"])
@@ -240,13 +276,21 @@ def main():
                         w.close()
                         n_videos += 1
                     print(f"[{len(episodes)}] task {task_idx} state {si} {r['cls']}/{r['template_id']}: {ep['outcome']} "
-                          f"({ep['n_steps']} steps, {(time.time()-t0)/len(episodes):.1f} s/ep)")
-                    pd.DataFrame(episodes).to_parquet(out / "episodes.parquet")  # scalar columns; cheap to rewrite
+                          f"({ep['n_steps']} steps, {(time.time()-t0)/n_new:.1f} s/ep)", flush=True)
+                    _write(pd.DataFrame(episodes), out / "episodes.parquet")  # scalar columns; cheap to rewrite
         finally:
             env.close()
             if task_steps:
-                pd.DataFrame(task_steps).to_parquet(out / f"steps_t{task_idx}.parquet")
-    print(f"wrote {len(episodes)} episodes to {out}")
+                _write(pd.DataFrame(task_steps), out / f"steps_t{task_idx}{run_tag}.parquet")
+    (out / "DONE").write_text(f"episodes={len(episodes)}\n")
+    print(f"wrote {len(episodes)} episodes to {out}", flush=True)
+
+
+def _write(df: pd.DataFrame, path: Path):
+    """Atomic Parquet write: a killed run never leaves a half-written file."""
+    tmp = Path(str(path) + ".tmp")
+    df.to_parquet(tmp)
+    os.replace(tmp, path)
 
 
 def read_steps(path) -> pd.DataFrame:

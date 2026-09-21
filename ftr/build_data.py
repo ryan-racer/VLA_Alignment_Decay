@@ -100,8 +100,7 @@ def cmd_export_rlds(args):
     episodes = list(ds.take(args.scan))
     rng.shuffle(episodes)
     for ep_i, ep in enumerate(episodes):
-        steps = list(ep["steps"])
-        lang = steps[0]["language_instruction"].numpy().decode().lower()
+        lang = next(iter(ep["steps"].take(1)))["language_instruction"].numpy().decode().lower()
         if args.per_task is not None:
             if per_task.get(lang, 0) >= args.per_task:
                 continue
@@ -109,6 +108,7 @@ def cmd_export_rlds(args):
         elif kept >= args.episodes:
             break
         kept += 1
+        steps = list(ep["steps"])  # decode only the episodes we keep
         for t, st in enumerate(steps):
             img = st["observation"]["image"].numpy()
             img = resize_image(img, (224, 224))

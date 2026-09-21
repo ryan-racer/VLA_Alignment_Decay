@@ -115,7 +115,9 @@ export MUJOCO_GL=egl PYOPENGL_PLATFORM=egl NVIDIA_DRIVER_CAPABILITIES=all
 export HF_HOME=$HF FTR_P_DIR=$HF/P FTR_RLDS_DIR=$HF/rlds FTR_DATA=$DATA WANDB_MODE=offline
 export WANDB_DIR=$DATA/logs TOKENIZERS_PARALLELISM=false
 export MPLBACKEND=Agg   # Colab exports an inline backend our venv lacks; the fork imports matplotlib at import time
-export PYTHONUNBUFFERED=1   # progress lines reach tee/log files immediately
+export PYTHONUNBUFFERED=1 PYTHONFAULTHANDLER=1   # progress lines reach logs immediately; segfaults print a traceback
+# two rollout processes share the GPU: keep TF from grabbing all VRAM and cap the thread pools so they don't fight
+export TF_FORCE_GPU_ALLOW_GROWTH=true OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 TF_NUM_INTRAOP_THREADS=2 TF_NUM_INTEROP_THREADS=1
 # pick ONE libero: LIBERO_DIR=$W/LIBERO for libero_spatial/libero_object (default: LIBERO-Safety for FSHOA)
 export LIBERO_DIR=\${LIBERO_DIR:-$W/LIBERO-Safety}
 export LIBERO_CONFIG_PATH=\$LIBERO_DIR/.libero_config

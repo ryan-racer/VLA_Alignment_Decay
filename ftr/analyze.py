@@ -175,6 +175,31 @@ def fig_contact(rates: pd.DataFrame, out: Path):
     plt.close(fig)
 
 
+# --- training-target diagnostics ------------------------------------------------------------------
+
+
+def target_noop_rates(parquet_paths: list[str]) -> dict:
+    """PLAN: zero-pattern base rate in the tokenized training targets (does personalization train *against*
+    the no-op, or merely fail to rehearse it?). CPU only: codec + P's stats."""
+    from ftr.codec import Codec
+
+    c = Codec()
+    out = {}
+    for p in parquet_paths:
+        df = pd.read_parquet(p)
+        rates = {}
+        for k in (0, 1, 2):
+            hits = 0
+            for a in df["action"]:
+                a = np.asarray(a, dtype=float)
+                ids = c.to_token_ids(c.normalize(a))
+                g = int(c.to_token_ids(c.noop_label(a[6]))[6])
+                hits += int(c.refused(ids, k, gripper_expected_id=g))
+            rates[f"k{k}"] = hits / max(len(df), 1)
+        out[str(p)] = dict(n=len(df), **rates, categories=df["category"].value_counts().to_dict() if "category" in df else {})
+    return out
+
+
 # --- entry ---------------------------------------------------------------------------------------
 
 
@@ -200,6 +225,7 @@ def main():
     ap.add_argument("--out", default="figures")
     ap.add_argument("--p", default=None, help="ckpt name of P, for Rs exclusions")
     ap.add_argument("--pairs", nargs="*", default=[], help="ckpt_a:ckpt_b pairs for paired contact deltas")
+    ap.add_argument("--targets", nargs="*", default=[], help="training Parquets: no-op base rate of their tokenized targets")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -223,6 +249,8 @@ def main():
         ut = ep[ep["cls"] == "task"]
         if len(ut):
             utility(ut).to_csv(out / "utility.csv", index=False)
+    if args.targets:
+        report["target_noop_rate"] = target_noop_rates(args.targets)
     (out / "report.json").write_text(json.dumps(report, indent=2, default=str))
     print(json.dumps(report, indent=2, default=str)[:4000])
 

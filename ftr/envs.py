@@ -8,7 +8,10 @@ Select the checkout with PYTHONPATH (both register the package `libero`):
 
 from __future__ import annotations
 
+import collections
+import functools
 import os
+import time
 from pathlib import Path
 
 import numpy as np
@@ -73,8 +76,9 @@ def make_env(bddl_path: str, resolution: int = 256, hard_reset: bool | None = No
 
     if hard_reset is None:
         hard_reset = os.environ.get("FTR_HARD_RESET", "0") == "1"
+    # agentview only: the wrist camera is never read; the agentview render is identical with or without it
     return OffScreenRenderEnv(bddl_file_name=bddl_path, camera_heights=resolution, camera_widths=resolution,
-                              hard_reset=hard_reset)
+                              hard_reset=hard_reset, camera_names=["agentview"])
 
 
 def reset_to(env, state: np.ndarray, settle_steps: int = SETTLE_STEPS):
@@ -124,17 +128,106 @@ def constraint_key(c) -> str:
     return "_".join(str(x) for x in c).lower()
 
 
+class _ConstraintTables:
+    """Per-model boolean geom-id tables reproducing the fork's *name-based* predicates exactly, so every
+    constraint is one vectorised pass over sim.data.contact instead of a Python loop per predicate."""
+
+    def __init__(self, env):
+        m, dom = env.sim.model, env.env
+        names = [m.geom_id2name(i) for i in range(m.ngeom)]
+        strip = lambda n: n[9:] if (n and "pad_collision" in n) else n  # noqa: E731  (_check_contact's prefix strip)
+        stripped = [strip(n) for n in names]
+        robot = {stripped[i] for i, n in enumerate(names) if n and m.geom_group[i] == 0 and ("gripper" in n or "robot" in n)}
+        in_robot = np.array([x in robot for x in stripped], dtype=bool)
+        self.model, self.tables = m, {}
+        for c in constraints(env):
+            k = constraint_key(c)
+            if c[0] == "checkrobotcontact" and len(c) == 2:
+                hand = set(dom.get_object(c[1]).contact_geoms)
+                self.tables[k] = (in_robot, np.array([x in hand for x in stripped], dtype=bool))
+            elif c[0] == "checkcontact" and len(c) == 3:  # robosuite check_contact: raw names, symmetric
+                g1, g2 = set(dom.get_object(c[1]).contact_geoms), set(dom.get_object(c[2]).contact_geoms)
+                self.tables[k] = (np.array([n in g1 for n in names], dtype=bool), np.array([n in g2 for n in names], dtype=bool))
+            else:
+                self.tables[k] = None  # unknown predicate: fall back to the fork's evaluator
+
+    def eval(self, env) -> dict:
+        d = env.sim.data
+        n = int(d.ncon)
+        g1, g2 = np.asarray(d.contact.geom1[:n]), np.asarray(d.contact.geom2[:n])
+        out = {}
+        for c in constraints(env):
+            k = constraint_key(c)
+            t = self.tables[k]
+            if t is None:
+                out[k] = int(env.env._eval_predicate(c))
+            else:
+                a, b = t
+                out[k] = int(bool(np.any((a[g1] & b[g2]) | (b[g1] & a[g2])))) if n else 0
+        return out
+
+
 def eval_costs(env) -> dict:
     """Re-evaluate every constraint ourselves: info['cost'] is keyed by predicate name (the CheckContact
-    entries collapse to one) and is suppressed on the success step."""
+    entries collapse to one) and is suppressed on the success step. Vectorised; tables rebuilt if the model changes."""
+    tab = getattr(env, "_ftr_tables", None)
+    if tab is None or tab.model is not env.sim.model:
+        tab = env._ftr_tables = _ConstraintTables(env)
+    return tab.eval(env)
+
+
+def eval_costs_reference(env) -> dict:
+    """The fork's own per-predicate path; the first-episode shadow check asserts eval_costs == this."""
     return {constraint_key(c): int(env.env._eval_predicate(c)) for c in constraints(env)}
 
 
-def step(env, action):
-    """-> obs, success, costs(dict), info. The env never terminates on cost; the caller decides."""
+class StepTimer:
+    """Per-phase wall time for one episode, printed once. Camera wrappers pass the frame through untouched."""
+
+    def __init__(self):
+        self.t, self.n, self.ncon_max = collections.defaultdict(float), 0, 0
+
+    def add(self, key, dt):
+        self.t[key] += dt
+
+    def wrap_cameras(self, env):
+        for name, ob in env.env._observables.items():
+            if name.endswith("_image"):
+                raw = ob._sensor
+
+                @functools.wraps(raw)
+                def timed(obs_cache, _raw=raw, _key=f"render:{name}"):
+                    t0 = time.perf_counter()
+                    out = _raw(obs_cache)
+                    self.t[_key] += time.perf_counter() - t0
+                    return out
+
+                ob._sensor = timed
+
+    def report(self, env):
+        n = max(self.n, 1)
+        parts = " | ".join(f"{k} {1e3*v/n:.1f}" for k, v in sorted(self.t.items(), key=lambda kv: -kv[1]))
+        m = env.sim.model
+        print(f"[timing] {self.n} steps, ms/step: {parts} | accounted {1e3*sum(self.t.values())/n:.1f}"
+              f" || ncon now={int(env.sim.data.ncon)} max={self.ncon_max} nconmax={int(m.nconmax)} ngeom={int(m.ngeom)}", flush=True)
+
+
+def step(env, action, timer: StepTimer | None = None):
+    """-> obs, success, costs(dict), info. The env never terminates on cost; the caller decides.
+    success is the fork's own `done` (= _check_success() on this state); with a timer the first episode also
+    shadow-checks it against check_success() and the vectorised costs against the fork's evaluator."""
+    t0 = time.perf_counter()
     obs, _, done, info = env.step(list(action))
-    success = bool(env.check_success())
+    t1 = time.perf_counter()
+    success = bool(done)
     costs = eval_costs(env) if constraints(env) else {}
+    if timer is not None:
+        timer.add("env.step(total)", t1 - t0)
+        timer.add("eval_costs", time.perf_counter() - t1)
+        timer.ncon_max = max(timer.ncon_max, int(env.sim.data.ncon))
+        assert success == bool(env.check_success()), "done != check_success()"
+        ref = eval_costs_reference(env)
+        assert costs == ref, (costs, ref)
     return obs, success, costs, info
 
 
