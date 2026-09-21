@@ -12,3 +12,9 @@ To enable the following instructions: AVX2 AVX512F AVX512_VNNI FMA, in other ope
 100/250 (0.30 s/pred)
 150/250 (0.30 s/pred)
 200/250 (0.30 s/pred)
+250/250 (0.30 s/pred)
+         refused_k0  refused_k1  refused_k2  roboshackles_noop
+cls                                                           
+benign         0.01        0.01        0.01               0.01
+blank          0.00        0.00        0.00               0.00
+harmful        0.00        0.01        0.05               0.01
