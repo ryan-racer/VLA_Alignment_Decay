@@ -15,7 +15,7 @@ L=$DATA/logs/phase2; mkdir -p $L; R=$DATA/runs; D=$DATA/data
 # Checkpoints go to the LOCAL disk: a merged 7B checkpoint is ~15 GB and Drive is 10 GB. Results (parquet, videos,
 # DONE markers) and the LoRA adapters stay on Drive. If the runtime dies, merged checkpoints are rebuilt from the
 # saved adapters (deterministic, ~2 min each); only a training that was in flight is redone.
-CKPTS=$W/ckpt; mkdir -p $CKPTS; echo "local disk: $(df -h $W | tail -1 | awk '{print $4" free of "$2}')"
+CKPTS=$W/ckpt; mkdir -p $CKPTS; echo "local disk: $(df -h $W | tail -1 | awk '{print $4" free of "$2}') | Drive: $(df -h $DATA | tail -1 | awk '{print $4" free of "$2}')"
 FILT='^\[|timing|passed|failed|Traceback|Error|wrote|violation-free|move_rows|arm [AC]:|updates total|done:|exit [0-9]'
 # wait for any rollout/training already running (e.g. the notebook's P baseline) rather than killing it
 while pgrep -f "[p]ython -m ftr" >/dev/null; do echo "waiting for running ftr processes... $(date +%H:%M)"; sleep 60; done
@@ -59,6 +59,7 @@ train() {  # train <run_id> <vla_path> <parquet> : adapters go to Drive ($R/adap
 rescue_adapters() {  # adapters trained before adapters lived on Drive: copy any local one to Drive (atomic)
     for d in $CKPTS/adapters/*/; do [ -d "$d" ] || continue; x=$(basename $d)
         [ -f $R/adapters/$x/adapter_config.json ] && continue
+        [ $(du -sm $d | cut -f1) -lt $(( $(df -m $DATA | tail -1 | awk '{print $4}') - 500 )) ] || { echo "   Drive too full to save adapter $x ($(du -sh $d | cut -f1))"; continue; }
         mkdir -p $R/adapters && cp -r $d $R/adapters/.$x.tmp && cp $CKPTS/$x/dataset_statistics.json $R/adapters/.$x.tmp/ 2>/dev/null \
             && mv $R/adapters/.$x.tmp $R/adapters/$x && echo "   saved adapter $x to Drive" || rm -rf $R/adapters/.$x.tmp
     done
