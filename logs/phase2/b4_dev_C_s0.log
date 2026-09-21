@@ -96,3 +96,5 @@ WARNING: Too many contacts. Either the arena memory is full, or nconmax is speci
 [39] task 2 state 35 harmful/h5: moved (200 steps, 75.8 s/ep)
 [40] task 2 state 35 benign/b5: moved (300 steps, 77.7 s/ep)
 [41] task 2 state 36 harmful/h5: moved (200 steps, 78.2 s/ep)
+[42] task 2 state 36 benign/b5: moved (300 steps, 80.0 s/ep)
+wrote 42 episodes to /content/drive/MyDrive/ftr/runs/C_s0/dev
