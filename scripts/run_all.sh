@@ -41,6 +41,10 @@ stage() {  # stage <name> <done-file> <cmd...>  : run unless done; record failur
 }
 need() { for f in "$@"; do [ -f "$f" ] || { echo "   skip: missing $f"; return 1; }; done; }
 
+# parallel stages: `wait` with no pids would also wait for the sync loop above, forever
+PIDS=""
+bg() { "$@" > /dev/null 2>&1 & PIDS="$PIDS $!"; }
+waitbg() { [ -n "$PIDS" ] && wait $PIDS; PIDS=""; }
 rollout() {  # rollout <out-dir> <log-name> <args...>
     local out=$1 log=$2; shift 2
     python -m ftr.rollout --resume --out $out "$@" 2>&1 | tee $L/$log.log | grep --line-buffered -E "$FILT"
@@ -84,9 +88,9 @@ for CK in A_s0 C_s0; do need $CKPTS/$CK/DONE && stage "dev_$CK" $R/$CK/dev/DONE 
 sync_logs
 # baseline half of the hazard matrix, two processes
 if need $CKPTS/A_s0/DONE $CKPTS/C_s0/DONE; then
-    [ -f $R/A_s0/hazard/DONE ] || rollout $R/A_s0/hazard b6_hazard_A_s0 --ckpt $CKPTS/A_s0 $HAZ > /dev/null 2>&1 &
-    [ -f $R/C_s0/hazard/DONE ] || rollout $R/C_s0/hazard b6_hazard_C_s0 --ckpt $CKPTS/C_s0 $HAZ > /dev/null 2>&1 &
-    wait
+    [ -f $R/A_s0/hazard/DONE ] || bg rollout $R/A_s0/hazard b6_hazard_A_s0 --ckpt $CKPTS/A_s0 $HAZ
+    [ -f $R/C_s0/hazard/DONE ] || bg rollout $R/C_s0/hazard b6_hazard_C_s0 --ckpt $CKPTS/C_s0 $HAZ
+    waitbg
     for CK in A_s0 C_s0; do [ -f $R/$CK/hazard/DONE ] && echo "== hazard_$CK: ok" || echo "== hazard_$CK: FAILED" | tee -a $L/FAILED; done
 fi
 gate() { python -m ftr.analyze --runs $R/P_score $R/A_s0/score_test $R/C_s0/score_test $R/A_s0/dev $R/C_s0/dev $R/A_s0/hazard $R/C_s0/hazard \
@@ -103,20 +107,22 @@ rescue_adapters
 sync_logs
 for CK in A_s0_N50_p0 A_s0_N200_p0 C_s0_N200_p0; do need $CKPTS/$CK/DONE && stage "score_$CK" $R/$CK/score_test/predictions.parquet score $CK; done
 if need $CKPTS/A_s0_N200_p0/DONE $CKPTS/C_s0_N200_p0/DONE; then
-    [ -f $R/A_s0_N200_p0/hazard/DONE ] || rollout $R/A_s0_N200_p0/hazard c3_hazard_A200 --ckpt $CKPTS/A_s0_N200_p0 $HAZ > /dev/null 2>&1 &
-    [ -f $R/C_s0_N200_p0/hazard/DONE ] || rollout $R/C_s0_N200_p0/hazard c3_hazard_C200 --ckpt $CKPTS/C_s0_N200_p0 $HAZ > /dev/null 2>&1 &
-    wait
+    [ -f $R/A_s0_N200_p0/hazard/DONE ] || bg rollout $R/A_s0_N200_p0/hazard c3_hazard_A200 --ckpt $CKPTS/A_s0_N200_p0 $HAZ
+    [ -f $R/C_s0_N200_p0/hazard/DONE ] || bg rollout $R/C_s0_N200_p0/hazard c3_hazard_C200 --ckpt $CKPTS/C_s0_N200_p0 $HAZ
+    waitbg
+    for CK in A_s0_N200_p0 C_s0_N200_p0; do [ -f $R/$CK/hazard/DONE ] && echo "== hazard_$CK: ok" || echo "== hazard_$CK: FAILED" | tee -a $L/FAILED; done
 fi
 sync_logs
 # utility on the upstream LIBERO checkout: two processes (spatial + object), then the second checkpoint
 export LIBERO_DIR=$W/LIBERO LIBERO_CONFIG_PATH=$W/LIBERO/.libero_config PYTHONPATH=$REPO:$W/openvla:$W/LIBERO
-util() { rollout $R/$1/u_$2 c4_util_${1}_$2 --ckpt $3 --suite $2 --tasks all --states 0-4 --task-instruction > /dev/null 2>&1; }
+util() { rollout $R/$1/u_$2 c4_util_${1}_$2 --ckpt $3 --suite $2 --tasks all --states 0-4 --task-instruction; }
 for CK in P A_s0 A_s0_N200_p0; do
     CKPT=$([ "$CK" = P ] && echo $FTR_P_DIR || echo $CKPTS/$CK)
     [ "$CK" = P ] || need $CKPTS/$CK/DONE || continue
-    [ -f $R/$CK/u_libero_spatial/DONE ] || util $CK libero_spatial $CKPT &
-    [ -f $R/$CK/u_libero_object/DONE ]  || util $CK libero_object  $CKPT &
-    wait
+    [ -f $R/$CK/u_libero_spatial/DONE ] || bg util $CK libero_spatial $CKPT
+    [ -f $R/$CK/u_libero_object/DONE ]  || bg util $CK libero_object  $CKPT
+    waitbg
+    for S in libero_spatial libero_object; do [ -f $R/$CK/u_$S/DONE ] && echo "== util_${CK}_$S: ok" || echo "== util_${CK}_$S: FAILED" | tee -a $L/FAILED; done
 done
 export LIBERO_DIR=$W/LIBERO-Safety LIBERO_CONFIG_PATH=$W/LIBERO-Safety/.libero_config PYTHONPATH=$REPO:$W/openvla:$W/LIBERO-Safety
 final() { python -m ftr.analyze --runs $R/P_score $R/*/score_test $R/*/hazard $R/*/u_* \
