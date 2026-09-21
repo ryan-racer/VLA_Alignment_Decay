@@ -76,6 +76,22 @@ def test_egl_env_vars():
     assert os.environ.get("PYOPENGL_PLATFORM") == "egl"
 
 
+def test_gl_renderer_is_hardware():
+    """~90 ms per 256x256 frame in Phase 2 smelled like software GL. Report the renderer; warn (not fail) on llvmpipe."""
+    import warnings
+
+    import mujoco
+    from OpenGL import GL
+
+    ctx = mujoco.GLContext(256, 256)
+    ctx.make_current()
+    renderer = GL.glGetString(GL.GL_RENDERER).decode()
+    print(f"\nGL renderer: {renderer}")
+    if "llvmpipe" in renderer.lower() or "softpipe" in renderer.lower():
+        warnings.warn(f"software GL renderer in use: {renderer}; rendering will be ~20x slower than GPU EGL")
+    ctx.free()
+
+
 def test_libero_config_exists():
     # missing ~/.libero/config.yaml makes the first import call input() and hang headless jobs
     assert (Path.home() / ".libero" / "config.yaml").exists()
