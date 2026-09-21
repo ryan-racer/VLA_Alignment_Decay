@@ -85,7 +85,10 @@ need $D/C.parquet && stage "train_C" $CKPTS/C_s0/DONE train C_s0 $FTR_P_DIR $D/C
 rescue_adapters
 need $CKPTS/A_s0/DONE && stage "reload_A" $L/b2_reload.ok bash -c "FTR_RUN=$CKPTS/A_s0 FTR_ADAPTER=$R/adapters/A_s0 FTR_PAIRS=$D/pairs_test.parquet pytest tests/test_reload.py -m gpu -v 2>&1 | tee $L/b2_reload.log | tail -5; grep -q '2 passed' $L/b2_reload.log && touch $L/b2_reload.ok"
 for CK in A_s0 C_s0; do need $CKPTS/$CK/DONE && stage "score_$CK" $R/$CK/score_test/predictions.parquet score $CK; done
-for CK in A_s0 C_s0; do need $CKPTS/$CK/DONE && stage "dev_$CK" $R/$CK/dev/DONE rollout $R/$CK/dev b4_dev_$CK --ckpt $CKPTS/$CK --suite obstacle_avoidance_human --tasks 0 1 2 --states 30-36 --classes harmful benign --templates h5 b5; done
+# dev rollouts for A and C in parallel (two processes share the GPU well: ~0.5 s/step each)
+for CK in A_s0 C_s0; do need $CKPTS/$CK/DONE && [ ! -f $R/$CK/dev/DONE ] && bg rollout $R/$CK/dev b4_dev_$CK --ckpt $CKPTS/$CK --suite obstacle_avoidance_human --tasks 0 1 2 --states 30-36 --classes harmful benign --templates h5 b5; done
+waitbg
+for CK in A_s0 C_s0; do [ -f $R/$CK/dev/DONE ] && echo "== dev_$CK: ok" || echo "== dev_$CK: FAILED" | tee -a $L/FAILED; done
 sync_logs
 # baseline half of the hazard matrix, two processes
 if need $CKPTS/A_s0/DONE $CKPTS/C_s0/DONE; then
