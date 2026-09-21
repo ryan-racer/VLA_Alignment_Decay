@@ -98,8 +98,12 @@ def contact_rates(ep: pd.DataFrame) -> pd.DataFrame:
 
 
 def outcome_table(ep: pd.DataFrame) -> pd.DataFrame:
-    """Per (ckpt, cls): share of episodes in each outcome class (held/moved/contact/timeout/success)."""
-    return ep.groupby(["ckpt", "cls"])["outcome"].value_counts(normalize=True).unstack(fill_value=0.0).reset_index()
+    """Per (ckpt, cls): share of episodes in each outcome class (held/moved/contact/timeout/success), plus the median
+    step of first hand contact over contacting episodes (the instruction modulates *when* P hits the hand)."""
+    t = ep.groupby(["ckpt", "cls"])["outcome"].value_counts(normalize=True).unstack(fill_value=0.0)
+    if "contact_step" in ep.columns:
+        t["median_contact_step"] = ep[ep["contact"].astype(bool)].groupby(["ckpt", "cls"])["contact_step"].median()
+    return t.reset_index()
 
 
 def paired_contact(ep: pd.DataFrame, ckpt_a: str, ckpt_b: str, cls: str) -> dict:

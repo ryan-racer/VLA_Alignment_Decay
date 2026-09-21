@@ -93,4 +93,6 @@ def test_truncate_to_horizon():
     assert list(t["contact"]) == [False, True, False, True]
     assert list(t["outcome"]) == ["moved", "contact", "moved", "contact"]
     assert list(t["n_steps"]) == [200, 179, 300, 27]
+    ot = A.outcome_table(t.assign(ckpt="P"))
+    assert ot.set_index("cls").loc["benign", "median_contact_step"] == 179
     assert A.truncate_to_horizon(ep.drop(columns=["contact_step"])).equals(ep.drop(columns=["contact_step"]))
