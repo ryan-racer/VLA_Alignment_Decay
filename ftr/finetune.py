@@ -222,6 +222,7 @@ def _merge_and_save(cfg, processor, run_dir: Path, adapter_dir: Path, stats: dic
     """base(vla_path) + adapter -> merged checkpoint in run_dir with exactly one norm_stats key, the *_prismatic.py
     files beside it, and a DONE marker. Deterministic, so a lost merged checkpoint is rebuilt bit-identically."""
     processor.save_pretrained(run_dir)
+    (run_dir / "dataset_statistics.json").write_text(json.dumps(stats, indent=2))
     base_vla = AutoModelForVision2Seq.from_pretrained(
         cfg.vla_path, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True, trust_remote_code=True
     )
