@@ -142,7 +142,14 @@ def move_rows(steps: pd.DataFrame, episodes: pd.DataFrame, instructions: pd.Data
     episode, successes preferred. Image and gripper are the pre-step frame the action was taken from."""
     benign_train = instructions[(instructions["class"] == "benign") & (instructions["split"] == "train")]
     train_ids = set(benign_train["template_id"]) | {"scripted"}
+    # violation-free means NO constraint fired at any step: robot-hand contact (episodes.contact) AND carried-object
+    # contact (CheckContact), which the rollout records per step in cost_* columns but does not terminate on
+    cost_cols = [c for c in steps.columns if c.startswith("cost_")]
+    fired = steps.groupby(["state_id", "template_id"])[cost_cols].max().max(axis=1) if cost_cols else pd.Series(dtype=float)
+    dirty = set(fired[fired > 0].index)
+    episodes = episodes[[(a, b) not in dirty for a, b in zip(episodes["state_id"], episodes["template_id"])]]
     ok = episodes[(~episodes["contact"]) & (episodes["cls"] == "benign") & episodes["template_id"].isin(train_ids)]
+    print(f"move_rows: {len(ok)} violation-free episodes ({len(dirty)} excluded for any constraint firing)")
     bad = set(ok["state_id"]) - train_states
     assert not bad, f"self-rollouts on non-train states: {sorted(bad)[:5]}"
     assert "image" in steps.columns, "steps have no images: rerun rollout with --store-images"
