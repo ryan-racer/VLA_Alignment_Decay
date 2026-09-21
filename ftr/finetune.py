@@ -112,7 +112,9 @@ def finetune(cfg: FinetuneConfig) -> None:
     processor = AutoProcessor.from_pretrained(cfg.vla_path, trust_remote_code=True)
     if cfg.merge_only:
         assert (adapter_dir / "adapter_config.json").exists(), f"no adapter at {adapter_dir}"
-        stats = json.loads((adapter_dir / "dataset_statistics.json").read_text())
+        stats_f = adapter_dir / "dataset_statistics.json"  # frozen to P's key either way (ftr.data.ParquetTransitions)
+        stats = json.loads(stats_f.read_text()) if stats_f.exists() else \
+            {UNNORM_KEY: {"action": {k: np.asarray(v).tolist() for k, v in Codec().stats.items()}}}
         _merge_and_save(cfg, processor, run_dir, adapter_dir, stats, "merged-from-adapter")
         return
     vla = AutoModelForVision2Seq.from_pretrained(
