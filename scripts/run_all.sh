@@ -12,6 +12,9 @@
 set -o pipefail
 source $W/env.sh
 L=$DATA/logs/phase2; mkdir -p $L; R=$DATA/runs; D=$DATA/data
+# Checkpoints go to the LOCAL disk: a merged 7B checkpoint is ~15 GB and Drive is 10 GB. Results (parquet, videos,
+# DONE markers) stay on Drive. If the runtime dies, checkpoints are retrained (A/C: minutes; N200: ~2 h).
+CKPTS=$W/ckpt; mkdir -p $CKPTS; echo "local disk: $(df -h $W | tail -1 | awk '{print $4" free of "$2}')"
 FILT='^\[|timing|passed|failed|Traceback|Error|wrote|violation-free|move_rows|arm [AC]:|updates total|done:|exit [0-9]'
 # wait for any rollout/training already running (e.g. the notebook's P baseline) rather than killing it
 while pgrep -f "[p]ython -m ftr" >/dev/null; do echo "waiting for running ftr processes... $(date +%H:%M)"; sleep 60; done
@@ -42,11 +45,11 @@ rollout() {  # rollout <out-dir> <log-name> <args...>
     python -m ftr.rollout --resume --out $out "$@" 2>&1 | tee $L/$log.log | grep --line-buffered -E "$FILT"
 }
 train() {  # train <run_id> <vla_path> <parquet>
-    python -m ftr.finetune --vla_path $2 --data_parquet $3 --run_root_dir $R --run_id $1 --adapter_tmp_dir $R/adapters \
+    python -m ftr.finetune --vla_path $2 --data_parquet $3 --run_root_dir $CKPTS --run_id $1 --adapter_tmp_dir $CKPTS/adapters \
         --epochs 3 --batch_size 8 --grad_accumulation_steps 2 --learning_rate 5e-4 --lora_rank 32 --seed 0 \
         2>&1 | tee $L/train_$1.log | grep --line-buffered -E "rows|updates|Saving|done|Traceback|Error|trainable"
 }
-score() { python -m ftr.score --ckpt $R/$1 --pairs $D/pairs_test.parquet --out $R/$1/score_test 2>&1 | tee $L/score_$1.log | tail -6; }
+score() { python -m ftr.score --ckpt $CKPTS/$1 --pairs $D/pairs_test.parquet --out $R/$1/score_test 2>&1 | tee $L/score_$1.log | tail -6; }
 HAZ="--suite obstacle_avoidance_human --tasks 3 4 --states 0-24 --classes harmful benign --templates h5 b5 --video 2"
 
 # ================================ A. data ==========================================================
@@ -62,34 +65,34 @@ need $D/spatial_rehearsal.parquet $R/scripted/episodes.parquet && { stage "mix_A
 sync_logs
 
 # ================================ B. align + gate ===================================================
-need $D/A.parquet && stage "train_A" $R/A_s0/DONE train A_s0 $FTR_P_DIR $D/A.parquet
-need $D/C.parquet && stage "train_C" $R/C_s0/DONE train C_s0 $FTR_P_DIR $D/C.parquet
-need $R/A_s0/DONE && stage "reload_A" $L/b2_reload.ok bash -c "FTR_RUN=$R/A_s0 FTR_ADAPTER=$R/adapters/A_s0 FTR_PAIRS=$D/pairs_test.parquet pytest tests/test_reload.py -m gpu -v 2>&1 | tee $L/b2_reload.log | tail -5; grep -q '2 passed' $L/b2_reload.log && touch $L/b2_reload.ok"
-for CK in A_s0 C_s0; do need $R/$CK/DONE && stage "score_$CK" $R/$CK/score_test/predictions.parquet score $CK; done
-for CK in A_s0 C_s0; do need $R/$CK/DONE && stage "dev_$CK" $R/$CK/dev/DONE rollout $R/$CK/dev b4_dev_$CK --ckpt $R/$CK --suite obstacle_avoidance_human --tasks 0 1 2 --states 30-36 --classes harmful benign --templates h5 b5; done
+need $D/A.parquet && stage "train_A" $CKPTS/A_s0/DONE train A_s0 $FTR_P_DIR $D/A.parquet
+need $D/C.parquet && stage "train_C" $CKPTS/C_s0/DONE train C_s0 $FTR_P_DIR $D/C.parquet
+need $CKPTS/A_s0/DONE && stage "reload_A" $L/b2_reload.ok bash -c "FTR_RUN=$CKPTS/A_s0 FTR_ADAPTER=$CKPTS/adapters/A_s0 FTR_PAIRS=$D/pairs_test.parquet pytest tests/test_reload.py -m gpu -v 2>&1 | tee $L/b2_reload.log | tail -5; grep -q '2 passed' $L/b2_reload.log && touch $L/b2_reload.ok"
+for CK in A_s0 C_s0; do need $CKPTS/$CK/DONE && stage "score_$CK" $R/$CK/score_test/predictions.parquet score $CK; done
+for CK in A_s0 C_s0; do need $CKPTS/$CK/DONE && stage "dev_$CK" $R/$CK/dev/DONE rollout $R/$CK/dev b4_dev_$CK --ckpt $CKPTS/$CK --suite obstacle_avoidance_human --tasks 0 1 2 --states 30-36 --classes harmful benign --templates h5 b5; done
 sync_logs
 # baseline half of the hazard matrix, two processes
-if need $R/A_s0/DONE $R/C_s0/DONE; then
-    [ -f $R/A_s0/hazard/DONE ] || rollout $R/A_s0/hazard b6_hazard_A_s0 --ckpt $R/A_s0 $HAZ > /dev/null 2>&1 &
-    [ -f $R/C_s0/hazard/DONE ] || rollout $R/C_s0/hazard b6_hazard_C_s0 --ckpt $R/C_s0 $HAZ > /dev/null 2>&1 &
+if need $CKPTS/A_s0/DONE $CKPTS/C_s0/DONE; then
+    [ -f $R/A_s0/hazard/DONE ] || rollout $R/A_s0/hazard b6_hazard_A_s0 --ckpt $CKPTS/A_s0 $HAZ > /dev/null 2>&1 &
+    [ -f $R/C_s0/hazard/DONE ] || rollout $R/C_s0/hazard b6_hazard_C_s0 --ckpt $CKPTS/C_s0 $HAZ > /dev/null 2>&1 &
     wait
     for CK in A_s0 C_s0; do [ -f $R/$CK/hazard/DONE ] && echo "== hazard_$CK: ok" || echo "== hazard_$CK: FAILED" | tee -a $L/FAILED; done
 fi
 gate() { python -m ftr.analyze --runs $R/P_score $R/A_s0/score_test $R/C_s0/score_test $R/A_s0/dev $R/C_s0/dev $R/A_s0/hazard $R/C_s0/hazard \
-    --p $FTR_P_DIR --pairs $R/A_s0:$R/C_s0 --targets $D/A.parquet $D/C.parquet --out $DATA/figures_gate 2>&1 | tee $L/b5_gate.log | head -80
+    --p $FTR_P_DIR --pairs $CKPTS/A_s0:$CKPTS/C_s0 --targets $D/A.parquet $D/C.parquet --out $DATA/figures_gate 2>&1 | tee $L/b5_gate.log | head -80
     cat $DATA/figures_gate/refusal_rates.csv $DATA/figures_gate/contact_rates.csv 2>/dev/null | tee -a $L/b5_gate.log; }
 need $R/A_s0/score_test/predictions.parquet $R/C_s0/score_test/predictions.parquet && stage "gate" $L/b5_gate.log gate
 sync_logs
 
 # ================================ C. personalize + measure =========================================
-need $R/A_s0/DONE $D/object_N200_p0.parquet && stage "personalize_A200" $R/A_s0_N200_p0/DONE train A_s0_N200_p0 $R/A_s0 $D/object_N200_p0.parquet
-need $R/C_s0/DONE $D/object_N200_p0.parquet && stage "personalize_C200" $R/C_s0_N200_p0/DONE train C_s0_N200_p0 $R/C_s0 $D/object_N200_p0.parquet
-need $R/A_s0/DONE $D/object_N50_p0.parquet  && stage "personalize_A50"  $R/A_s0_N50_p0/DONE  train A_s0_N50_p0  $R/A_s0 $D/object_N50_p0.parquet
+need $CKPTS/A_s0/DONE $D/object_N200_p0.parquet && stage "personalize_A200" $CKPTS/A_s0_N200_p0/DONE train A_s0_N200_p0 $CKPTS/A_s0 $D/object_N200_p0.parquet
+need $CKPTS/C_s0/DONE $D/object_N200_p0.parquet && stage "personalize_C200" $CKPTS/C_s0_N200_p0/DONE train C_s0_N200_p0 $CKPTS/C_s0 $D/object_N200_p0.parquet
+need $CKPTS/A_s0/DONE $D/object_N50_p0.parquet  && stage "personalize_A50"  $CKPTS/A_s0_N50_p0/DONE  train A_s0_N50_p0  $CKPTS/A_s0 $D/object_N50_p0.parquet
 sync_logs
-for CK in A_s0_N50_p0 A_s0_N200_p0 C_s0_N200_p0; do need $R/$CK/DONE && stage "score_$CK" $R/$CK/score_test/predictions.parquet score $CK; done
-if need $R/A_s0_N200_p0/DONE $R/C_s0_N200_p0/DONE; then
-    [ -f $R/A_s0_N200_p0/hazard/DONE ] || rollout $R/A_s0_N200_p0/hazard c3_hazard_A200 --ckpt $R/A_s0_N200_p0 $HAZ > /dev/null 2>&1 &
-    [ -f $R/C_s0_N200_p0/hazard/DONE ] || rollout $R/C_s0_N200_p0/hazard c3_hazard_C200 --ckpt $R/C_s0_N200_p0 $HAZ > /dev/null 2>&1 &
+for CK in A_s0_N50_p0 A_s0_N200_p0 C_s0_N200_p0; do need $CKPTS/$CK/DONE && stage "score_$CK" $R/$CK/score_test/predictions.parquet score $CK; done
+if need $CKPTS/A_s0_N200_p0/DONE $CKPTS/C_s0_N200_p0/DONE; then
+    [ -f $R/A_s0_N200_p0/hazard/DONE ] || rollout $R/A_s0_N200_p0/hazard c3_hazard_A200 --ckpt $CKPTS/A_s0_N200_p0 $HAZ > /dev/null 2>&1 &
+    [ -f $R/C_s0_N200_p0/hazard/DONE ] || rollout $R/C_s0_N200_p0/hazard c3_hazard_C200 --ckpt $CKPTS/C_s0_N200_p0 $HAZ > /dev/null 2>&1 &
     wait
 fi
 sync_logs
@@ -97,15 +100,15 @@ sync_logs
 export LIBERO_DIR=$W/LIBERO LIBERO_CONFIG_PATH=$W/LIBERO/.libero_config PYTHONPATH=$REPO:$W/openvla:$W/LIBERO
 util() { rollout $R/$1/u_$2 c4_util_${1}_$2 --ckpt $3 --suite $2 --tasks all --states 0-4 --task-instruction > /dev/null 2>&1; }
 for CK in P A_s0 A_s0_N200_p0; do
-    CKPT=$([ "$CK" = P ] && echo $FTR_P_DIR || echo $R/$CK)
-    [ "$CK" = P ] || need $R/$CK/DONE || continue
+    CKPT=$([ "$CK" = P ] && echo $FTR_P_DIR || echo $CKPTS/$CK)
+    [ "$CK" = P ] || need $CKPTS/$CK/DONE || continue
     [ -f $R/$CK/u_libero_spatial/DONE ] || util $CK libero_spatial $CKPT &
     [ -f $R/$CK/u_libero_object/DONE ]  || util $CK libero_object  $CKPT &
     wait
 done
 export LIBERO_DIR=$W/LIBERO-Safety LIBERO_CONFIG_PATH=$W/LIBERO-Safety/.libero_config PYTHONPATH=$REPO:$W/openvla:$W/LIBERO-Safety
 final() { python -m ftr.analyze --runs $R/P_score $R/*/score_test $R/*/hazard $R/*/u_* \
-    --p $FTR_P_DIR --pairs $R/A_s0:$R/A_s0_N200_p0 $R/C_s0:$R/C_s0_N200_p0 \
+    --p $FTR_P_DIR --pairs $CKPTS/A_s0:$CKPTS/A_s0_N200_p0 $CKPTS/C_s0:$CKPTS/C_s0_N200_p0 \
     --targets $D/A.parquet $D/C.parquet $D/object_N50_p0.parquet $D/object_N200_p0.parquet --out $DATA/figures 2>&1 | tee $L/c5_analyze.log | head -100; }
 stage "analyze" $DATA/figures/report.json final
 echo "== ALL STAGES ATTEMPTED $(date)"; [ -f $L/FAILED ] && { echo "== failures:"; cat $L/FAILED; }
