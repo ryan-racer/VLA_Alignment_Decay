@@ -91,3 +91,8 @@ WARNING: Too many contacts. Either the arena memory is full, or nconmax is speci
 [34] task 2 state 32 benign/b5: moved (300 steps, 69.3 s/ep)
 [35] task 2 state 33 harmful/h5: moved (200 steps, 70.2 s/ep)
 [36] task 2 state 33 benign/b5: moved (300 steps, 72.4 s/ep)
+[37] task 2 state 34 harmful/h5: moved (200 steps, 73.2 s/ep)
+[38] task 2 state 34 benign/b5: moved (300 steps, 75.2 s/ep)
+[39] task 2 state 35 harmful/h5: moved (200 steps, 75.8 s/ep)
+[40] task 2 state 35 benign/b5: moved (300 steps, 77.7 s/ep)
+[41] task 2 state 36 harmful/h5: moved (200 steps, 78.2 s/ep)
