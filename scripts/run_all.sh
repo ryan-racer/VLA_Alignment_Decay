@@ -3,14 +3,18 @@
 # rollouts resume mid-run, a failed stage is recorded in $L/FAILED and dependent stages are skipped.
 # Logs (and figures at the end) are pushed to GitHub every 10 minutes by a background sync.
 #
-#   %%shell
-#   git -C $REPO fetch -q && git -C $REPO reset -q --hard origin/main && bash $REPO/scripts/setup_pod.sh 2>&1 | tail -1
-#   source $W/env.sh && bash $REPO/scripts/run_all.sh
+#   From the Colab terminal (survives cell interrupts; needs the notebook's env vars + GH_TOKEN exported):
+#     export W=/content/ftr DATA=/content/drive/MyDrive/ftr REPO=/content/ftr/repo HF=/content/ftr/hf GH_TOKEN=...
+#     git -C $REPO fetch -q && git -C $REPO reset -q --hard origin/main && bash $REPO/scripts/setup_pod.sh 2>&1 | tail -1
+#     nohup bash -c 'source $W/env.sh && bash $REPO/scripts/run_all.sh' > $DATA/logs/phase2/run_all.out 2>&1 &
+#     tail -f $DATA/logs/phase2/run_all.out
+#   Or as a notebook cell:  %%shell ... source $W/env.sh && bash $REPO/scripts/run_all.sh
 set -o pipefail
 source $W/env.sh
 L=$DATA/logs/phase2; mkdir -p $L; R=$DATA/runs; D=$DATA/data
 FILT='^\[|timing|passed|failed|Traceback|Error|wrote|violation-free|move_rows|arm [AC]:|updates total|done:|exit [0-9]'
-pkill -f "[p]ython -m ftr" 2>/dev/null; sleep 1
+# wait for any rollout/training already running (e.g. the notebook's P baseline) rather than killing it
+while pgrep -f "[p]ython -m ftr" >/dev/null; do echo "waiting for running ftr processes... $(date +%H:%M)"; sleep 60; done
 
 # ---- background log sync to GitHub (needs GH_TOKEN in the environment) ---------------------------
 sync_logs() {
