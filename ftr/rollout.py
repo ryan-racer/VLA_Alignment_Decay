@@ -229,7 +229,9 @@ def main():
     def horizon(cls):
         if args.max_steps:
             return args.max_steps
-        if args.suite in envs.HAZARD_HORIZON and not args.task_instruction and not args.scripted:
+        if args.scripted:
+            return 400  # phase caps sum to ~350
+        if args.suite in envs.HAZARD_HORIZON and not args.task_instruction:
             return envs.HAZARD_HORIZON.get(cls, envs.MAX_STEPS[args.suite])
         return envs.MAX_STEPS[args.suite]
     s = envs.suite(args.suite)

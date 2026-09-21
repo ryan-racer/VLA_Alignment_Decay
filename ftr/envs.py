@@ -349,16 +349,17 @@ def scripted_pickplace(env, obs, clearance: float = 0.30, grasp_dz: float = 0.02
 
     obj, owner = first_goal(env)
     z_obj = body_pos(env, obj)[2]
-    yield from run(_goto(get, np.asarray(get()["robot0_eef_pos"]) * [1, 1, 0] + [0, 0, z_obj + clearance]))
-    yield from run(_goto(get, body_pos(env, obj) + [0, 0, clearance]))
-    yield from run(_goto(get, body_pos(env, obj) + [0, 0, grasp_dz], k=6.0, max_steps=60))
-    for _ in range(12):  # close
+    # per-phase caps sum to ~350 steps: a failed grasp must not burn the whole 520-step horizon (labels need motion, not success)
+    yield from run(_goto(get, np.asarray(get()["robot0_eef_pos"]) * [1, 1, 0] + [0, 0, z_obj + clearance], max_steps=50))
+    yield from run(_goto(get, body_pos(env, obj) + [0, 0, clearance], max_steps=60))
+    yield from run(_goto(get, body_pos(env, obj) + [0, 0, grasp_dz], k=6.0, max_steps=40))
+    for _ in range(10):  # close
         a = np.zeros(7); a[6] = 1.0
         state["obs"] = yield a
-    yield from run(_goto(get, body_pos(env, obj) + [0, 0, clearance], gripper=1.0))
-    yield from run(_goto(get, body_pos(env, owner) + [0, 0, clearance], gripper=1.0, max_steps=120))
-    yield from run(_goto(get, body_pos(env, owner) + [0, 0, place_dz], gripper=1.0, k=6.0, max_steps=60))
+    yield from run(_goto(get, body_pos(env, obj) + [0, 0, clearance], gripper=1.0, max_steps=50))
+    yield from run(_goto(get, body_pos(env, owner) + [0, 0, clearance], gripper=1.0, max_steps=80))
+    yield from run(_goto(get, body_pos(env, owner) + [0, 0, place_dz], gripper=1.0, k=6.0, max_steps=40))
     for _ in range(8):  # open
         a = np.zeros(7); a[6] = -1.0
         state["obs"] = yield a
-    yield from run(_goto(get, body_pos(env, owner) + [0, 0, clearance], max_steps=40))
+    yield from run(_goto(get, body_pos(env, owner) + [0, 0, clearance], max_steps=30))
