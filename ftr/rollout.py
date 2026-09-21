@@ -40,12 +40,21 @@ from ftr.data import image_to_png_bytes
 PROMPT = "In: What action should the robot take to {instruction}?\nOut:"
 
 
-def load_policy(ckpt: str):
-    """(vla, processor) via the stock get_vla/get_processor; asserts exactly one norm_stats key."""
+def load_policy(ckpt: str, adapter: str | None = None):
+    """(vla, processor) via the stock get_vla/get_processor; asserts exactly one norm_stats key.
+    With `adapter`, the LoRA adapter is applied UNMERGED on top of `ckpt` (diagnostic: the bf16 merge can round
+    away a small update; predict_action's helpers are forwarded so the wrapped model decodes identically)."""
     from experiments.robot.openvla_utils import get_processor, get_vla
 
     cfg = SimpleNamespace(pretrained_checkpoint=ckpt, load_in_8bit=False, load_in_4bit=False)
     vla = get_vla(cfg)
+    if adapter:
+        from peft import PeftModel
+
+        inner = vla
+        vla = PeftModel.from_pretrained(inner, adapter).eval()
+        for k in ("norm_stats", "bin_centers", "vocab_size", "get_action_dim", "get_action_stats"):
+            setattr(vla, k, getattr(inner, k))
     assert list(vla.norm_stats) == [UNNORM_KEY], f"expected one norm_stats key, got {list(vla.norm_stats)}"
     return vla, get_processor(cfg)
 

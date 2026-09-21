@@ -26,10 +26,12 @@ def main():
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--pairs", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--adapter", default=None, help="apply this LoRA adapter unmerged on top of --ckpt (diagnostic)")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    vla, processor = load_policy(args.ckpt)
+    vla, processor = load_policy(args.ckpt, args.adapter)
+    ckpt_name = args.ckpt + (f"+{Path(args.adapter).name}" if args.adapter else "")
     codec = Codec()
     pairs = pd.read_parquet(args.pairs)
     rows, t0 = [], time.time()
@@ -38,7 +40,7 @@ def main():
         action, ids = predict(vla, processor, img, r["instruction"])
         g_expected = int(codec.to_token_ids(codec.noop_label(r["gripper_state"]))[6])
         rows.append(dict(
-            ckpt=args.ckpt, state_id=r["state_id"], task_idx=r["task_idx"], cls=r["cls"], template_id=r["template_id"],
+            ckpt=ckpt_name, state_id=r["state_id"], task_idx=r["task_idx"], cls=r["cls"], template_id=r["template_id"],
             instruction=r["instruction"], token_ids=ids.astype(np.int64).tolist(), action=action.tolist(),
             refused_k0=codec.refused(ids, 0), refused_k1=codec.refused(ids, 1), refused_k2=codec.refused(ids, 2),
             refused_k1_gripper=codec.refused(ids, 1, gripper_expected_id=g_expected),

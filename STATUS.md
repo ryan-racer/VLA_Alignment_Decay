@@ -1,6 +1,30 @@
 # Status
 
-Last updated: 20 September 2026 — **Phase 1 complete on Colab A100-40GB** (env 12/12, fixtures 4/4, parity 2/2, smoke 10 episodes). Next: `notebooks/phase2_colab.ipynb` section A.
+Last updated: 21 September 2026, 05:10 UTC — **Phase 2 running unattended on Colab** (`scripts/run_all.sh`, logs sync to `logs/phase2/`).
+
+## Overnight 20→21 Sep: what happened and what to do in the morning
+
+Done: states rendered (90 train / 50 test), 250 test pairs, scripted movement labels (task 0 re-run with `--no-place --clearance 0.45`: 30/30 clean; 62/90 episodes violation-free after the any-constraint filter), P baseline (hazard 150 episodes + 250 offline pairs), exports, mix (A = 300 noop / 300 move / 300 rehearsal; C = 450 move / 450 rehearsal), train A and C (171 updates, 3.5 min each), score A.
+
+Fixed tonight (all pushed): hazard horizon never applied (suite tested against the class dict; P was rolled out at 520 steps, `analyze.truncate_to_horizon` re-scores it at 200/300); mix marked the task-0 re-run dirty via the first run's steps; checkpoints moved to the local disk (Drive is 10 GB, a merged checkpoint ~15 GB — Drive quota was hit once; Trash must be emptied).
+
+**P baseline (50 test states, class horizons):** refusal 0.0 everywhere. Contact: harmful 47/50, benign 32/50, blank 38/50. Median time to contact: harmful ~30 steps, blank ~40, benign ~180. P moves into the hand regardless of instruction; the instruction changes *when*, not *whether*.
+
+**A@0 offline (Gate B screens):**
+
+| | Ru harmful | Rs benign | blank |
+|---|---|---|---|
+| A_s0, k=1 | 0.62 | 0.41 | 0.14 |
+| k=0 | 0.50 | 0.41 | 0.12 |
+
+Ru − Ru(P) = +62 ≥ 50 ✓. **Rs = 41% > 25% ✗** (over-refusal on held-out benign templates). Blank 14% ≪ Ru ✓. `reload_A` **FAILED**: merged vs unmerged adapter token agreement 14/20, max |Δaction| 0.495 (greedy decoding cascades; also possible bf16 merge wash-out of a 171-update LoRA delta). Pipeline continues regardless (dev, hazard A/C, gate, personalization, utility, analyze).
+
+Morning checklist (in order):
+1. `cat $DATA/logs/phase2/FAILED`; read `b5_gate.log`, `figures_gate/refusal_rates.csv`, `contact_rates.csv`, `outcomes.csv`, `refusal_breakdown.csv` (per template / per task: lexical shortcut vs scene?).
+2. Merge check: `python -m ftr.score --ckpt $FTR_P_DIR --adapter $W/ckpt/adapters/A_s0 --pairs $DATA/data/pairs_test.parquet --out $DATA/runs/A_s0/score_adapter` and compare with `runs/A_s0/score_test`. If the unmerged adapter refuses much more, the merge is washing out the update → save the adapter-applied model in fp32-then-bf16 or evaluate unmerged.
+3. Decide on A: if C@0's benign refusal is ~0 and A's 41% holds up in dev/hazard rollouts, retrain A (cheap: 4 min + 20 min score/dev) with more epochs (sharper boundary) and/or more move rows before re-running the hazard matrix (5 h). PLAN's pre-decided response: one diagnosis pass, then negative-result framing if unresolved.
+4. Relax `tests/test_reload.py` to a ±1-bin criterion only if step 2 shows the merge is sound.
+
 
 **Implemented** = code exists; **verified** = has a passing test or fixture; **planned** = neither.
 

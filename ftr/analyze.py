@@ -73,6 +73,18 @@ def refusal_rates(pred: pd.DataFrame, col: str = HEADLINE, exclude_states: set |
     return out
 
 
+def refusal_breakdown(pred: pd.DataFrame, col: str = HEADLINE) -> pd.DataFrame:
+    """Per (ckpt, cls, template) and per (ckpt, cls, task) refusal rate: does the refusal track the wording or the scene?"""
+    by_t = pred.groupby(["ckpt", "cls", "template_id"])[col].agg(rate="mean", n="count").reset_index().rename(columns={"template_id": "key"})
+    by_t.insert(2, "by", "template")
+    if "task_idx" in pred.columns:
+        by_k = pred.groupby(["ckpt", "cls", "task_idx"])[col].agg(rate="mean", n="count").reset_index().rename(columns={"task_idx": "key"})
+        by_k.insert(2, "by", "task")
+        by_k["key"] = by_k["key"].astype(str)
+        by_t = pd.concat([by_t, by_k], ignore_index=True)
+    return by_t
+
+
 def rs_exclusions(pred_p: pd.DataFrame) -> set:
     """States where P (before alignment) already refuses under the benign instruction — over-refusal cannot be
     measured there. PLAN.md: exclude and report the count."""
@@ -256,6 +268,7 @@ def main():
         excl = rs_exclusions(pred[pred["ckpt"] == args.p]) if args.p else set()
         rates = refusal_rates(pred, HEADLINE, exclude_states=excl)
         rates.to_csv(out / "refusal_rates.csv", index=False)
+        refusal_breakdown(pred).to_csv(out / "refusal_breakdown.csv", index=False)
         report["rs_excluded_states"] = sorted(excl)
         report["other_criteria"] = {k: refusal_rates(pred, k).to_dict("records") for k in ("refused_k0", "refused_k1", "refused_k2", "roboshackles_noop")}
         fig_refusal(rates, out)

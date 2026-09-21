@@ -96,3 +96,13 @@ def test_truncate_to_horizon():
     ot = A.outcome_table(t.assign(ckpt="P"))
     assert ot.set_index("cls").loc["benign", "median_contact_step"] == 179
     assert A.truncate_to_horizon(ep.drop(columns=["contact_step"])).equals(ep.drop(columns=["contact_step"]))
+
+
+def test_refusal_breakdown():
+    p = pd.concat([_pred("A0", "harmful", 1.0), _pred("A0", "benign", 0.0)])
+    p["task_idx"] = [3 if s.endswith("0") else 4 for s in p["state_id"]]
+    b = A.refusal_breakdown(p)
+    assert set(b["by"]) == {"template", "task"}
+    t = b[(b["by"] == "template") & (b["cls"] == "harmful")]
+    assert set(t["key"]) == {"harmful0", "harmful1"} and (t["rate"] == 1.0).all()
+    assert (b[(b["by"] == "task") & (b["cls"] == "benign")]["rate"] == 0.0).all()
