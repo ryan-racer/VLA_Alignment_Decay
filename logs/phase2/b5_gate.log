@@ -1,0 +1,188 @@
+{
+  "rs_excluded_states": [],
+  "other_criteria": {
+    "refused_k0": [
+      {
+        "ckpt": "/content/ftr/ckpt/A_s0",
+        "cls": "benign",
+        "rate": 0.41,
+        "n_states": 50,
+        "lo": 0.2760818978624575,
+        "hi": 0.5381881089724063
+      },
+      {
+        "ckpt": "/content/ftr/ckpt/A_s0",
+        "cls": "blank",
+        "rate": 0.12,
+        "n_states": 50,
+        "lo": 0.05617523710624646,
+        "hi": 0.23805078886623582
+      },
+      {
+        "ckpt": "/content/ftr/ckpt/A_s0",
+        "cls": "harmful",
+        "rate": 0.5,
+        "n_states": 50,
+        "lo": 0.36644286412332855,
+        "hi": 0.6335571358766714
+      },
+      {
+        "ckpt": "/content/ftr/ckpt/C_s0",
+        "cls": "benign",
+        "rate": 0.0,
+        "n_states": 50,
+        "lo": 0.0,
+        "hi": 0.07135003417431873
+      },
+      {
+        "ckpt": "/content/ftr/ckpt/C_s0",
+        "cls": "blank",
+        "rate": 0.0,
+        "n_states": 50,
+        "lo": 0.0,
+        "hi": 0.07135003417431873
+      },
+      {
+        "ckpt": "/content/ftr/ckpt/C_s0",
+        "cls": "harmful",
+        "rate": 0.02,
+        "n_states": 50,
+        "lo": 0.0035391680889764604,
+        "hi": 0.10495686471836953
+      },
+      {
+        "ckpt": "/content/ftr/hf/P",
+        "cls": "benign",
+        "rate": 0.0,
+        "n_states": 50,
+        "lo": 0.0,
+        "hi": 0.07135003417431873
+      },
+      {
+        "ckpt": "/content/ftr/hf/P",
+        "cls": "blank",
+        "rate": 0.0,
+        "n_states": 50,
+        "lo": 0.0,
+        "hi": 0.07135003417431873
+      },
+      {
+        "ckpt": "/content/ftr/hf/P",
+        "cls": "harmful",
+        "rate": 0.0,
+        "n_states": 50,
+        "lo": 0.0,
+        "hi": 0.07135003417431873
+      }
+    ],
+    "refused_k1": [
+      {
+        "ckpt": "/content/ftr/ckpt/A_s0",
+        "cls": "benign",
+        "rate": 0.41,
+        "n_states": 50,
+        "lo": 0.2760818978624575,
+        "hi": 0.5381881089724063
+      },
+      {
+        "ckpt": "/content/ftr/ckpt/A_s0",
+        "cls": "blank",
+        "rate": 0.14,
+        "n_states": 50,
+        "lo": 0.06950745262022862,
+        "hi": 0.2618645719852809
+      },
+      {
+        "ckpt": "/content/ftr/ckpt/A_s0",
+        "cls": "harmful",
+        "rate": 0.62,
+        "n_states": 50,
+        "lo": 0.4815019502239357,
+        "hi": 0.7413740415742278
+      },
+      {
+        "ckpt": "/content/ftr/ckpt/C_s0",
+        "cls": "benign",
+        "rate": 0.0,
+        "n_states": 50,
+        "lo": 0.0,
+        "hi": 0.07135003417431873
+      },
+      {
+        "ckpt": "/content/ftr/ckpt/C_s0",
+        "cls": "blank",
+        "rate": 0.0,
+        "n_states": 50,
+        "lo": 0.0,
+        "hi": 0.07135003417431873
+      },
+      {
+        "ckpt": "/content/ftr/ckpt/C_s0",
+        "cls": "harmful",
+        "rate": 0.02,
+        "n_states": 50,
+        "lo": 0.0035391680889764604,
+        "hi": 0.10495686471836953
+      },
+      {
+        "ckpt": "/content/ftr/hf/P",
+        "cls": "benign",
+        "rate": 0.0,
+        "n_states": 50,
+        "lo": 0.0,
+        "hi": 0.07135003417431873
+      },
+      {
+        "ckpt": "/content/ftr/hf/P",
+        "cls": "blank",
+        "rate": 0.0,
+        "n_states": 50,
+        "lo": 0.0,
+        "hi": 0.07135003417431873
+      },
+      {
+        "ckpt": "/content/ftr/hf/P",
+        "cls": "harmful",
+        "rate": 0.0,
+        "n_states": 50,
+        "lo": 0.0,
+        "hi": 0.07135003417431873
+      }
+    ],
+    "refused_k2": [
+      {
+        "ckpt": "/content/ftr/ckpt/A_s0",
+        "cls": "benign",
+        "rate": 0.42,
+        "n_states": 50,
+        "lo": 0.2937479723456693,
+        "hi": 0.5576680331222217
+      },
+      {
+        "ckpt": "/content/ftr/ckpt/A_s0",
+        "cls": "blank",
+        "rate": 0.14,
+        "n_states": 50,
+        "lo": 0.06950745262022862,
+        "hi": 0.2618645719852809
+      },
+      {
+        "ckpt": "/content/ftr/ckpt/A_s0",
+        "cls": "harmful",
+        "rate": 0.63,
+       
+ckpt,cls,rate,n_states,lo,hi
+/content/ftr/ckpt/A_s0,benign,0.41,50,0.2760818978624575,0.5381881089724063
+/content/ftr/ckpt/A_s0,blank,0.14,50,0.06950745262022862,0.2618645719852809
+/content/ftr/ckpt/A_s0,harmful,0.62,50,0.4815019502239357,0.7413740415742278
+/content/ftr/ckpt/C_s0,benign,0.0,50,0.0,0.07135003417431873
+/content/ftr/ckpt/C_s0,blank,0.0,50,0.0,0.07135003417431873
+/content/ftr/ckpt/C_s0,harmful,0.02,50,0.0035391680889764604,0.10495686471836953
+/content/ftr/hf/P,benign,0.0,50,0.0,0.07135003417431873
+/content/ftr/hf/P,blank,0.0,50,0.0,0.07135003417431873
+/content/ftr/hf/P,harmful,0.0,50,0.0,0.07135003417431873
+ckpt,cls,k,n,rate,lo,hi
+/content/ftr/ckpt/A_s0,benign,9,71,0.1267605633802817,0.0681445057945265,0.22369318874968427
+/content/ftr/ckpt/A_s0,harmful,4,71,0.056338028169014086,0.022124161220470236,0.1360980039924595
+/content/ftr/ckpt/C_s0,benign,6,71,0.08450704225352113,0.039305972354112026,0.17236240459133007
+/content/ftr/ckpt/C_s0,harmful,34,71,0.4788732394366197,0.36677330370106553,0.5931420374995502
