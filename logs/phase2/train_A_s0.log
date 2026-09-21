@@ -58,3 +58,12 @@ Traceback (most recent call last):
   File "/root/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/pathlib.py", line 1119, in open
     return self._accessor.open(self, mode, buffering, encoding, errors,
 FileNotFoundError: [Errno 2] No such file or directory: '/content/drive/MyDrive/ftr/runs/adapters/A_s0/dataset_statistics.json'
+2026-09-21 18:44:01.692521: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2026-09-21 18:44:01.756165: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2026-09-21 18:44:01.756217: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2026-09-21 18:44:01.759358: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2026-09-21 18:44:01.770453: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2026-09-21 18:44:02.797369: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:00,  3.10it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:00<00:00,  3.51it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:00<00:00,  3.64it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:01<00:00,  3.82it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:01<00:00,  3.68it/s]
+done: merged-from-adapter updates
