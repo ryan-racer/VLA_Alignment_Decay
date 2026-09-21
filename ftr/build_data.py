@@ -181,8 +181,12 @@ def cmd_mix(args):
     states = pd.read_parquet(args.states)
     train_states = set(states["state_id"])
     ins = pd.read_csv(args.instructions, keep_default_na=False)
-    steps = read_steps(args.self)
-    episodes = pd.read_parquet(args.self_episodes)
+    # one or more scripted/self-rollout run dirs (e.g. a task-0 re-run with a higher path); later dirs win on duplicate keys
+    steps = pd.concat([read_steps(d) for d in args.self], ignore_index=True)
+    episodes = pd.concat([pd.read_parquet(Path(d) / "episodes.parquet") for d in args.self], ignore_index=True)
+    episodes = episodes.drop_duplicates(subset=["state_id", "template_id"], keep="last")
+    keep = set(zip(episodes["state_id"], episodes["template_id"]))
+    steps = steps[[(a, b) in keep for a, b in zip(steps["state_id"], steps["template_id"])]]
     rehearsal = pd.read_parquet(args.rehearsal)[["image", "instruction", "action", "category"]].copy()
     rehearsal["category"] = "rehearsal"
     move = move_rows(steps, episodes, ins, train_states, args.n_move, args.per_episode, rng)
@@ -215,8 +219,8 @@ def main():
     e.add_argument("--per-task", type=int, default=None); e.add_argument("--scan", type=int, default=5000); e.add_argument("--seed", type=int, default=0)
     e.add_argument("--category", default="personalize"); e.add_argument("--out", required=True)
     m = sub.add_parser("mix"); m.add_argument("--arm", choices=["A", "C"], required=True); m.add_argument("--states", required=True)
-    m.add_argument("--instructions", default="manifests/instructions.csv"); m.add_argument("--self", required=True, help="rollout run dir (steps_t*.parquet)")
-    m.add_argument("--self-episodes", required=True); m.add_argument("--rehearsal", required=True)
+    m.add_argument("--instructions", default="manifests/instructions.csv"); m.add_argument("--self", nargs="+", required=True, help="scripted/self-rollout run dir(s); later dirs override earlier on the same (state, template)")
+    m.add_argument("--rehearsal", required=True)
     m.add_argument("--n-noop", type=int, default=300); m.add_argument("--n-move", type=int, default=300); m.add_argument("--n-rehearsal", type=int, default=300)
     m.add_argument("--per-episode", type=int, default=5); m.add_argument("--seed", type=int, default=0); m.add_argument("--out", required=True)
     args = ap.parse_args()
