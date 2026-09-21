@@ -9,3 +9,14 @@ self-rollout dirs: ['/content/drive/MyDrive/ftr/runs/scripted', '/content/drive/
 move_rows: 32 violation-free episodes (58 excluded for any constraint firing)
 move_rows: 32 violation-free episodes (58 excluded for any constraint firing)
 arm C: {'rehearsal': 450, 'move': 310} -> /content/drive/MyDrive/ftr/data/C.parquet
+self-rollout dirs: ['/content/drive/MyDrive/ftr/runs/scripted', '/content/drive/MyDrive/ftr/runs/scripted_t0b']
+/content/ftr/repo/ftr/build_data.py:148: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  return pd.concat(stp, ignore_index=True), pd.concat(eps, ignore_index=True)
+move_rows: 62 violation-free episodes (28 excluded for any constraint firing)
+arm A: {'move': 300, 'noop': 300, 'rehearsal': 300} -> /content/drive/MyDrive/ftr/data/A.parquet
+self-rollout dirs: ['/content/drive/MyDrive/ftr/runs/scripted', '/content/drive/MyDrive/ftr/runs/scripted_t0b']
+/content/ftr/repo/ftr/build_data.py:148: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  return pd.concat(stp, ignore_index=True), pd.concat(eps, ignore_index=True)
+move_rows: 62 violation-free episodes (28 excluded for any constraint firing)
+move_rows: 62 violation-free episodes (28 excluded for any constraint firing)
+arm C: {'rehearsal': 450, 'move': 450} -> /content/drive/MyDrive/ftr/data/C.parquet
