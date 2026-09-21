@@ -6,21 +6,10 @@ configfile: pytest.ini
 plugins: typeguard-2.13.3
 collecting ... collected 2 items
 
-tests/test_reload.py::test_merged_has_one_norm_stats_key FAILED          [ 50%]
+tests/test_reload.py::test_merged_has_one_norm_stats_key PASSED          [ 50%]
 tests/test_reload.py::test_merged_agrees_with_unmerged_adapter FAILED    [100%]
 
 =================================== FAILURES ===================================
-______________________ test_merged_has_one_norm_stats_key ______________________
-
-    def test_merged_has_one_norm_stats_key():
-        cfg = json.loads((RUN / "config.json").read_text())
-        assert list(cfg["norm_stats"]) == ["libero_spatial"], list(cfg["norm_stats"])
->       assert (RUN / "dataset_statistics.json").exists()
-E       AssertionError: assert False
-E        +  where False = exists()
-E        +    where exists = (PosixPath('/content/ftr/ckpt/A_s0') / 'dataset_statistics.json').exists
-
-tests/test_reload.py:29: AssertionError
 ___________________ test_merged_agrees_with_unmerged_adapter ___________________
 
     def test_merged_agrees_with_unmerged_adapter():
@@ -45,26 +34,23 @@ ___________________ test_merged_agrees_with_unmerged_adapter ___________________
             agree += int(np.array_equal(ids1, ids2))
             max_delta = max(max_delta, float(np.max(np.abs(a1[:6] - a2[:6]))))
 >       assert agree / N_OBS >= 0.95, f"token agreement {agree}/{N_OBS}, max |Δaction| {max_delta:.4f}"
-E       AssertionError: token agreement 17/20, max |Δaction| 0.3006
-E       assert (17 / 20) >= 0.95
+E       AssertionError: token agreement 16/20, max |Δaction| 0.7992
+E       assert (16 / 20) >= 0.95
 
 tests/test_reload.py:55: AssertionError
 ----------------------------- Captured stdout call -----------------------------
 [*] Instantiating Pretrained VLA model
 [*] Loading in BF16 with Flash-Attention Enabled
-WARNING: No local dataset_statistics.json file found for current checkpoint.
-You can ignore this if you are loading the base VLA (i.e. not fine-tuned) checkpoint.Otherwise, you may run into errors when trying to call `predict_action()` due to an absent `unnorm_key`.
 ----------------------------- Captured stderr call -----------------------------
-2026-09-21 18:48:14.477032: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
-2026-09-21 18:48:14.537470: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
-2026-09-21 18:48:14.537526: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
-2026-09-21 18:48:14.540306: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
-2026-09-21 18:48:14.550920: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+2026-09-21 19:38:41.589024: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2026-09-21 19:38:41.648696: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2026-09-21 19:38:41.648758: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2026-09-21 19:38:41.651287: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2026-09-21 19:38:41.661641: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
 To enable the following instructions: AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
-2026-09-21 18:48:15.716688: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
-Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:03,  1.33s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.32it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  1.89it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  2.41it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.83it/s]
-Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:05,  1.76s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.78s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:05<00:01,  1.80s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:05<00:00,  1.22s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:05<00:00,  1.43s/it]
+2026-09-21 19:38:42.801119: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:03,  1.24s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:01<00:01,  1.27it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:02<00:00,  1.53it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  2.02it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:02<00:00,  1.63it/s]
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:05,  1.79s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.80s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:05<00:01,  1.81s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:05<00:00,  1.23s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:05<00:00,  1.44s/it]
 =========================== short test summary info ============================
-FAILED tests/test_reload.py::test_merged_has_one_norm_stats_key - AssertionEr...
 FAILED tests/test_reload.py::test_merged_agrees_with_unmerged_adapter - Asser...
-======================== 2 failed in 120.45s (0:02:00) =========================
+=================== 1 failed, 1 passed in 131.59s (0:02:11) ====================
