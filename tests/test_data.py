@@ -76,3 +76,20 @@ def test_parquet_dataset_and_collator(tmp_path, proc, codec):
     pad = batch["input_ids"] == proc.tokenizer.pad_token_id
     assert torch.all(batch["labels"][pad] == IGNORE_INDEX)
     assert torch.all(~batch["attention_mask"][pad])
+
+
+def test_load_self_rollouts_later_dir_wins(tmp_path):
+    from pathlib import Path
+
+    from ftr.build_data import load_self_rollouts
+
+    def mk(d, rows):
+        d.mkdir()
+        pd.DataFrame([dict(state_id=s, template_id="scripted", contact=c) for s, c, _ in rows]).to_parquet(d / "episodes.parquet")
+        pd.DataFrame([dict(state_id=s, template_id="scripted", t=0, cost_x=x) for s, _, x in rows]).to_parquet(d / "steps_t0.parquet")
+    mk(tmp_path / "first", [("t0/0", True, 1.0), ("t1/0", False, 0.0)])
+    mk(tmp_path / "rerun", [("t0/0", False, 0.0)])
+    read = lambda d: pd.read_parquet(Path(d) / "steps_t0.parquet")
+    steps, eps = load_self_rollouts([tmp_path / "first", tmp_path / "rerun"], read)
+    assert len(eps) == 2 and not eps.set_index("state_id").loc["t0/0", "contact"]
+    assert steps.groupby("state_id")["cost_x"].max().to_dict() == {"t0/0": 0.0, "t1/0": 0.0}

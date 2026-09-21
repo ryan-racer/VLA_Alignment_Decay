@@ -136,6 +136,18 @@ def noop_rows(states: pd.DataFrame, instructions: pd.DataFrame, n_target: int, r
     return df[["image", "instruction", "action", "category", "state_id", "template_id"]]
 
 
+def load_self_rollouts(dirs, read_steps) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Steps and episodes from several run dirs; on a duplicate (state, template) key the LATER dir wins and the
+    earlier dir's episode AND its steps are dropped (a re-run's clean episode must not inherit the old run's costs)."""
+    eps = [pd.read_parquet(Path(d) / "episodes.parquet") for d in dirs]
+    stp = [read_steps(d) for d in dirs]
+    for i in range(len(dirs) - 1):
+        later = set().union(*[set(zip(e["state_id"], e["template_id"])) for e in eps[i + 1:]])
+        eps[i] = eps[i][[(a, b) not in later for a, b in zip(eps[i]["state_id"], eps[i]["template_id"])]]
+        stp[i] = stp[i][[(a, b) not in later for a, b in zip(stp[i]["state_id"], stp[i]["template_id"])]]
+    return pd.concat(stp, ignore_index=True), pd.concat(eps, ignore_index=True)
+
+
 def move_rows(steps: pd.DataFrame, episodes: pd.DataFrame, instructions: pd.DataFrame, train_states: set,
               n_target: int, per_episode: int, rng, exclude: set | None = None) -> pd.DataFrame:
     """Violation-free P self-rollout steps under benign TRAIN templates on TRAIN states, <= per_episode rows per
@@ -191,11 +203,7 @@ def cmd_mix(args):
     # one or more scripted/self-rollout run dirs (e.g. a task-0 re-run with a higher path); later dirs win on duplicate keys
     dirs = [d for d in args.self if (Path(d) / "episodes.parquet").exists()]
     print(f"self-rollout dirs: {dirs}" + (f" (missing: {[d for d in args.self if d not in dirs]})" if len(dirs) < len(args.self) else ""))
-    steps = pd.concat([read_steps(d) for d in dirs], ignore_index=True)
-    episodes = pd.concat([pd.read_parquet(Path(d) / "episodes.parquet") for d in dirs], ignore_index=True)
-    episodes = episodes.drop_duplicates(subset=["state_id", "template_id"], keep="last")
-    keep = set(zip(episodes["state_id"], episodes["template_id"]))
-    steps = steps[[(a, b) in keep for a, b in zip(steps["state_id"], steps["template_id"])]]
+    steps, episodes = load_self_rollouts(dirs, read_steps)
     rehearsal = pd.read_parquet(args.rehearsal)[["image", "instruction", "action", "category"]].copy()
     rehearsal["category"] = "rehearsal"
     move = move_rows(steps, episodes, ins, train_states, args.n_move, args.per_episode, rng)
