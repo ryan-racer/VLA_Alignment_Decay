@@ -33,3 +33,28 @@ wandb: You can sync this run to the cloud by running:
 wandb: wandb sync /content/drive/MyDrive/ftr/logs/wandb/offline-run-20260921_044338-ihhfycei
 wandb: Find logs at: /content/drive/MyDrive/ftr/logs/wandb/offline-run-20260921_044338-ihhfycei/logs
 wandb: WARNING The new W&B backend becomes opt-out in version 0.18.0; try it out with `wandb.require("core")`! See https://wandb.me/wandb-core for more information.
+The cache for model files in Transformers v4.22.0 has been updated. Migrating your old cache. This is a one-time only operation. You can interrupt this and resume the migration later on by calling `transformers.utils.move_cache()`.
+0it [00:00, ?it/s]0it [00:00, ?it/s]
+2026-09-21 18:37:09.785617: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2026-09-21 18:37:10.556413: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2026-09-21 18:37:10.556532: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2026-09-21 18:37:10.653827: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2026-09-21 18:37:10.845533: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2026-09-21 18:37:14.755940: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+Traceback (most recent call last):
+  File "/root/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/root/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/content/ftr/repo/ftr/finetune.py", line 238, in <module>
+    finetune()
+  File "/content/ftr/venv/lib/python3.10/site-packages/draccus/argparsing.py", line 203, in wrapper_inner
+    response = fn(cfg, *args, **kwargs)
+  File "/content/ftr/repo/ftr/finetune.py", line 115, in finetune
+    stats = json.loads((adapter_dir / "dataset_statistics.json").read_text())
+  File "/root/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/pathlib.py", line 1134, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+  File "/root/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/pathlib.py", line 1119, in open
+    return self._accessor.open(self, mode, buffering, encoding, errors,
+FileNotFoundError: [Errno 2] No such file or directory: '/content/drive/MyDrive/ftr/runs/adapters/A_s0/dataset_statistics.json'
