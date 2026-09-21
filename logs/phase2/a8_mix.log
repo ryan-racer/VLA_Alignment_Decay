@@ -1,0 +1,11 @@
+self-rollout dirs: ['/content/drive/MyDrive/ftr/runs/scripted', '/content/drive/MyDrive/ftr/runs/scripted_t0b']
+/content/ftr/repo/ftr/build_data.py:195: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  episodes = pd.concat([pd.read_parquet(Path(d) / "episodes.parquet") for d in dirs], ignore_index=True)
+move_rows: 32 violation-free episodes (58 excluded for any constraint firing)
+arm A: {'rehearsal': 300, 'noop': 300, 'move': 160} -> /content/drive/MyDrive/ftr/data/A.parquet
+self-rollout dirs: ['/content/drive/MyDrive/ftr/runs/scripted', '/content/drive/MyDrive/ftr/runs/scripted_t0b']
+/content/ftr/repo/ftr/build_data.py:195: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  episodes = pd.concat([pd.read_parquet(Path(d) / "episodes.parquet") for d in dirs], ignore_index=True)
+move_rows: 32 violation-free episodes (58 excluded for any constraint firing)
+move_rows: 32 violation-free episodes (58 excluded for any constraint firing)
+arm C: {'rehearsal': 450, 'move': 310} -> /content/drive/MyDrive/ftr/data/C.parquet
