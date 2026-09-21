@@ -189,8 +189,10 @@ def cmd_mix(args):
     train_states = set(states["state_id"])
     ins = pd.read_csv(args.instructions, keep_default_na=False)
     # one or more scripted/self-rollout run dirs (e.g. a task-0 re-run with a higher path); later dirs win on duplicate keys
-    steps = pd.concat([read_steps(d) for d in args.self], ignore_index=True)
-    episodes = pd.concat([pd.read_parquet(Path(d) / "episodes.parquet") for d in args.self], ignore_index=True)
+    dirs = [d for d in args.self if (Path(d) / "episodes.parquet").exists()]
+    print(f"self-rollout dirs: {dirs}" + (f" (missing: {[d for d in args.self if d not in dirs]})" if len(dirs) < len(args.self) else ""))
+    steps = pd.concat([read_steps(d) for d in dirs], ignore_index=True)
+    episodes = pd.concat([pd.read_parquet(Path(d) / "episodes.parquet") for d in dirs], ignore_index=True)
     episodes = episodes.drop_duplicates(subset=["state_id", "template_id"], keep="last")
     keep = set(zip(episodes["state_id"], episodes["template_id"]))
     steps = steps[[(a, b) in keep for a, b in zip(steps["state_id"], steps["template_id"])]]
