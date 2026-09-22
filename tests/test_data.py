@@ -93,3 +93,21 @@ def test_load_self_rollouts_later_dir_wins(tmp_path):
     steps, eps = load_self_rollouts([tmp_path / "first", tmp_path / "rerun"], read)
     assert len(eps) == 2 and not eps.set_index("state_id").loc["t0/0", "contact"]
     assert steps.groupby("state_id")["cost_x"].max().to_dict() == {"t0/0": 0.0, "t1/0": 0.0}
+
+
+def test_mix_extra_move_rows_are_disjoint():
+    """C's extra movement rows must not reuse the shared movement rows, even though scripted rows are relabelled."""
+    from ftr.build_data import move_rows
+
+    ins = pd.DataFrame([dict(template_id="b1", **{"class": "benign"}, split="train", text="{task}"),
+                        dict(template_id="b2", **{"class": "benign"}, split="train", text="{task} carefully")])
+    states = [f"t0/{i}" for i in range(4)]
+    eps = pd.DataFrame([dict(state_id=s, template_id="scripted", cls="benign", contact=False, success=True) for s in states])
+    steps = pd.DataFrame([dict(state_id=s, template_id="scripted", t=t, image=b"x", instruction="pick it",
+                               action_model=[0.0] * 7, refused_k1=False, cost_x=0.0) for s in states for t in range(10)])
+    rng = np.random.default_rng(0)
+    move = move_rows(steps, eps, ins, set(states), 12, 3, rng)
+    assert (move["template_id"] != "scripted").all() and (move["src_template_id"] == "scripted").all()
+    used = set(zip(move["state_id"], move["src_template_id"], move["t"].astype(int)))
+    extra = move_rows(steps, eps, ins, set(states), 12, 3, np.random.default_rng(1), exclude=used)
+    assert len(extra) and not (set(zip(extra["state_id"], extra["src_template_id"], extra["t"].astype(int))) & used)

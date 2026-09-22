@@ -13,6 +13,16 @@ Does benign LoRA personalization erode a taught action-level safeguard in OpenVL
 
 **Substrate:** LIBERO-Safety FSHOA L0 hand scenes for hazards, upstream LIBERO for utility, OpenVLA's stock harness throughout, pip `robosuite==1.4.1` (never the fork's vendored copy).
 
-**Runtime:** Python 3.10, OpenVLA's pinned stack, set up by `scripts/setup_pod.sh` on a RunPod A100 network volume. `requirements.txt` is written from `pip freeze` once tests pass.
+**Runtime:** Python 3.10, OpenVLA's pinned stack, set up by `scripts/setup_pod.sh` on one Linux + NVIDIA box (Lambda by default). The whole experiment is `scripts/run_all.sh`:
+
+```
+git clone https://github.com/ryan-racer/VLA_Alignment_Decay.git ~/ftr/repo
+bash ~/ftr/repo/scripts/setup_pod.sh                     # ~20 min, ~31 GB of downloads
+source ~/ftr/env.sh && pytest tests/test_env.py tests/test_fixtures.py tests/test_parity.py -m gpu
+export GH_TOKEN=...                                      # optional: logs + figures pushed to logs/run/ every 10 min
+nohup bash scripts/run_all.sh > ~/ftr/run_all.out 2>&1 &
+```
+
+Re-running `run_all.sh` resumes; failures and skipped stages are listed in `$DATA/logs/run/FAILED`.
 
 Weights, datasets and raw run outputs are never committed (see `.gitignore`).

@@ -24,7 +24,7 @@ Everything that can be written and verified without a GPU is done first, on the 
 | 0.8 | Rollout loop **(blind)** | `ftr/rollout.py` | read only | CSV instructions, token capture via `codec.generate_with_tokens`, terminate-on-contact, outcome column, `action_model`/`action_env` both logged, Parquet + `args.json` |
 | 0.9 | Data builder, scorer | `ftr/build_data.py`, `ftr/score.py` | RLDS export runs on Mac **if** `tensorflow==2.15` installs; else blind | export writes `(image, instruction, raw_action)` Parquet; mix baker produces per-arm Parquet with the planned row counts; `score.py` reads `pairs.parquet` and writes `predictions.parquet` |
 | 0.10 | Analysis | `ftr/analyze.py`, `tests/test_analyze.py` | `pytest` on Mac with synthetic Parquet | Wilson, discordant pairs + exact McNemar, percentile paired bootstrap, per-state aggregation, outcome taxonomy; Fig. 1, Fig. 2, Table 1 render from fake records |
-| 0.11 | Job scripts | `scripts/train_A.sh`, `train_C.sh`, `personalize.sh` | read | the exact `finetune.py` command lines with `--save_steps == --max_steps`, seeds, paths |
+| 0.11 | Pipeline | `scripts/run_all.sh` | read | every command line of the experiment, in order, resumable; the exact configs |
 | 0.12 | Paper §1–2 | `paper/main.tex` (from the CoRL template) | compiles | motivation and protocol drafted; figure/table placeholders; every scope cut stated |
 | 0.13 | Tests scaffold | `tests/test_fixtures.py`, `tests/test_parity.py`, `tests/test_reload.py` | read | written against the interfaces above; skipped on Mac (`pytest.mark.gpu`) |
 
@@ -46,9 +46,9 @@ If 1.1–1.5 pass, the environment is real and day 1 of PLAN.md is done. Stop th
 
 PLAN.md days 3–9: P baseline on test states, self-rollouts, data build, A/C training, gates, hazard matrix, utility, analysis. Writing happens on the Mac in parallel from day 7.
 
-## Environment (`scripts/setup_pod.sh`; RunPod or Colab)
+## Environment (`scripts/setup_pod.sh`; any Linux + NVIDIA box, Lambda by default)
 
-Parametrized by `W` (local: venv + clones), `DATA` (persistent: HF cache, runs, data, logs) and `CUDA` (`cu118` default → prebuilt flash-attn wheel, no compile; `cu121` compiles). On Colab: `W=/content/ftr`, `DATA=/content/drive/MyDrive/ftr`; the notebook sets these.
+Parametrized by `W` (local: venv + clones), `DATA` (persistent: HF cache, runs, data, logs) and `CUDA` (`cu118` default → prebuilt flash-attn wheel, no compile; `cu121` compiles). Defaults: `W=DATA=$HOME/ftr`. On Lambda, point `DATA` at a persistent filesystem (`/lambda/nfs/<fs>/ftr`) if results must outlive the instance.
 
 RunPod secure A100 80 GB ($1.59/h) + 200 GB network volume mounted at `/workspace`. No Docker build: start from RunPod's `pytorch 2.2.0 / py3.10 / cuda 12.1.1 devel` image (verify the exact tag on day 0) and run an idempotent `scripts/setup_pod.sh`:
 
@@ -89,7 +89,7 @@ ftr/                 flat, on PYTHONPATH, never installed
   analyze.py   ~60   Ru/Rs/blank per state; contact rates; discordant pairs; percentile paired bootstrap; two figures, one table
 patches/libero_safety_issue3.patch
 manifests/*.csv      splits, instruction templates, pair ids — committed (.gitignore swallows Parquet)
-scripts/setup_mac.sh, setup_pod.sh, train_A.sh, train_C.sh, personalize.sh   the exact command lines are the configs
+scripts/setup_mac.sh, setup_pod.sh, run_all.sh   the exact command lines are the configs
 tests/  test_codec.py test_data.py test_analyze.py        run on the Mac
         test_env.py test_fixtures.py test_parity.py test_reload.py   run on the pod (pytest.mark.gpu)
 paper/               CoRL 2026 template + main.tex

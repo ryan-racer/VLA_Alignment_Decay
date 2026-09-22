@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-# Idempotent GPU environment for OpenVLA + LIBERO + LIBERO-Safety. Works on a RunPod pod or a Colab runtime.
+# Idempotent GPU environment for OpenVLA + LIBERO + LIBERO-Safety on any Linux + NVIDIA box (Lambda, RunPod, Colab).
+# Runs as a normal user with sudo; everything lives under $HOME/ftr unless overridden.
 #
-#   W     local, fast, may be ephemeral: venv, openvla, LIBERO clones          (default /workspace)
-#   DATA  persistent, small: runs/, data/, logs/, adapters                     (default $W)
+#   W     venv, openvla, LIBERO clones, merged checkpoints                      (default $HOME/ftr)
+#   DATA  runs/, data/, logs/, adapters, figures; point at a persistent filesystem to survive instance teardown
+#         (Lambda: DATA=/lambda/nfs/<filesystem>/ftr)                            (default $W)
 #   HF    where the ~31 GB of public downloads go; local is fine, HF re-serves them in minutes  (default $W/hf)
 #   CUDA  cu118 (default; prebuilt flash-attn wheel, no compile) or cu121 (compiles flash-attn, ~30-60 min)
 #
-#   RunPod:  git clone <repo> /workspace/repo && bash /workspace/repo/scripts/setup_pod.sh
-#   Colab:   see notebooks/phase1_colab.ipynb (W=/content/ftr HF=/content/ftr/hf DATA=/content/drive/MyDrive/ftr)
-#   then:    source $W/env.sh && pytest $REPO/tests/test_env.py -m gpu -v
+#   git clone https://github.com/ryan-racer/VLA_Alignment_Decay.git ~/ftr/repo && bash ~/ftr/repo/scripts/setup_pod.sh
+#   then:    source ~/ftr/env.sh && pytest tests/test_env.py tests/test_fixtures.py tests/test_parity.py -m gpu -v
+#   then:    scripts/run_all.sh (see its header)
 set -euo pipefail
 
-W=${W:-/workspace}
+W=${W:-$HOME/ftr}
 DATA=${DATA:-$W}
 CUDA=${CUDA:-cu118}
 REPO=${REPO:-$W/repo}
@@ -29,7 +31,8 @@ $SUDO apt-get install -y -qq cmake ninja-build ffmpeg libegl1 libgl1 libglew-dev
     linux-libc-dev libmagickwand-dev imagemagick libfontconfig1-dev unzip git-lfs >/dev/null
 
 # ---- Python 3.10 venv on local disk (uv fetches the interpreter if needed) -------------------
-command -v uv >/dev/null || pip install -q uv
+export PATH=$HOME/.local/bin:$PATH
+command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 [ -x $W/venv/bin/python ] || uv venv --python 3.10 --python-preference only-managed $W/venv
 PY=$W/venv/bin/python
 $PY -c 'import sys; assert sys.version_info[:2] == (3, 10), sys.version' || { echo "venv is not Python 3.10: $($PY --version)"; exit 1; }
@@ -110,11 +113,12 @@ fi
 
 # ---- env file to source per shell -------------------------------------------------------------------
 cat > $W/env.sh <<EOF
+export W=$W DATA=$DATA REPO=$REPO HF=$HF PATH=\$HOME/.local/bin:\$PATH
 source $W/venv/bin/activate
 export MUJOCO_GL=egl PYOPENGL_PLATFORM=egl NVIDIA_DRIVER_CAPABILITIES=all
 export HF_HOME=$HF FTR_P_DIR=$HF/P FTR_RLDS_DIR=$HF/rlds FTR_DATA=$DATA WANDB_MODE=offline
 export WANDB_DIR=$DATA/logs TOKENIZERS_PARALLELISM=false
-export MPLBACKEND=Agg   # Colab exports an inline backend our venv lacks; the fork imports matplotlib at import time
+export MPLBACKEND=Agg   # headless; the fork imports matplotlib at import time
 export PYTHONUNBUFFERED=1 PYTHONFAULTHANDLER=1   # progress lines reach logs immediately; segfaults print a traceback
 # two rollout processes share the GPU: keep TF from grabbing all VRAM and cap the thread pools so they don't fight
 export TF_FORCE_GPU_ALLOW_GROWTH=true OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 TF_NUM_INTRAOP_THREADS=2 TF_NUM_INTEROP_THREADS=1

@@ -253,12 +253,12 @@ def main():
         episodes = prev.to_dict("records")
         done_keys = set(zip(prev["state_id"], prev["template_id"]))
         print(f"resuming after {len(episodes)} episodes", flush=True)
-    n_new, t0, run_tag = 0, time.time(), ("_r%d" % int(time.time())) if done_keys else ""
+    n_new, t0 = 0, time.time()
     for task_idx in task_ids:
         bddl, states, language = envs.task_bddl_and_states(args.suite, task_idx, args.level)
         env = envs.make_env(bddl)
         rows = [dict(cls="benign", template_id="scripted", text=language)] if args.scripted else instruction_rows(args, language)
-        task_steps, n_videos = [], 0
+        n_videos = 0
         timer = envs.StepTimer() if n_new == 0 and not done_keys else None  # first episode of the run only
         if timer is not None:
             timer.wrap_cameras(env)
@@ -279,8 +279,11 @@ def main():
                     meta = dict(ckpt=args.ckpt, suite=args.suite, level=args.level, task_idx=task_idx, task=language,
                                 state_idx=si, state_id=f"{args.suite}/{args.level}/{task_idx}/{si}",
                                 cls=r["cls"], template_id=r["template_id"], instruction=r["text"])
+                    # steps first, then the episode: a hard kill can never leave a "done" episode without its steps
+                    if steps:
+                        _write(pd.DataFrame([{**meta, **st} for st in steps]),
+                               out / f"steps_t{task_idx}_s{si}_{r['template_id']}.parquet")
                     episodes.append({**meta, **ep})
-                    task_steps += [{**meta, **st} for st in steps]
                     if frames:
                         import imageio
 
@@ -295,8 +298,6 @@ def main():
                     _write(pd.DataFrame(episodes), out / "episodes.parquet")  # scalar columns; cheap to rewrite
         finally:
             env.close()
-            if task_steps:
-                _write(pd.DataFrame(task_steps), out / f"steps_t{task_idx}{run_tag}.parquet")
     (out / "DONE").write_text(f"episodes={len(episodes)}\n")
     print(f"wrote {len(episodes)} episodes to {out}", flush=True)
 

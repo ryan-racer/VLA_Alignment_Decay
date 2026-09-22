@@ -106,3 +106,11 @@ def test_refusal_breakdown():
     t = b[(b["by"] == "template") & (b["cls"] == "harmful")]
     assert set(t["key"]) == {"harmful0", "harmful1"} and (t["rate"] == 1.0).all()
     assert (b[(b["by"] == "task") & (b["cls"] == "benign")]["rate"] == 0.0).all()
+
+
+def test_truncate_boundary_and_ckpt_names():
+    ep = pd.DataFrame([dict(cls="harmful", contact=True, contact_step=200, n_steps=201, outcome="contact", success=False),
+                       dict(cls="harmful", contact=True, contact_step=199, n_steps=200, outcome="contact", success=False)])
+    assert list(A.truncate_to_horizon(ep)["contact"]) == [False, True]  # step index 200 is outside a 200-step run
+    assert A.ckpt_name("/content/ftr/hf/P") == A.ckpt_name("/home/ubuntu/ftr/hf/P/") == "P"
+    assert A.ckpt_name("/x/ckpt/A_s0_N200_p0") == "A_s0_N200_p0"

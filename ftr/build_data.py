@@ -181,6 +181,7 @@ def move_rows(steps: pd.DataFrame, episodes: pd.DataFrame, instructions: pd.Data
     df = df.copy()
     df["action"] = df["action_model"]
     df["category"] = "move"
+    df["src_template_id"] = df["template_id"]  # the step's key in `steps`, before scripted rows are relabelled
     # scripted rows carry the bare task language; assign a benign train template per row so the movement half
     # sees the same instruction distribution (incl. the hard negative) as the no-op half sees harmful templates
     if len(df) and (df["template_id"] == "scripted").any():
@@ -188,7 +189,7 @@ def move_rows(steps: pd.DataFrame, episodes: pd.DataFrame, instructions: pd.Data
         tmpl = benign_train.sample(n=int(m.sum()), replace=True, random_state=int(rng.integers(1 << 31)))
         df.loc[m, "instruction"] = [t.replace("{task}", task) for t, task in zip(tmpl["text"], df.loc[m, "instruction"])]
         df.loc[m, "template_id"] = tmpl["template_id"].values
-    return df[["image", "instruction", "action", "category", "state_id", "template_id", "t"]]
+    return df[["image", "instruction", "action", "category", "state_id", "template_id", "src_template_id", "t"]]
 
 
 def cmd_mix(args):
@@ -212,7 +213,7 @@ def cmd_mix(args):
         noop = noop_rows(states, ins, args.n_noop, rng)
         parts = [noop, move, reh]
     else:  # C
-        used = set(zip(move["state_id"], move["template_id"], move["t"].astype(int)))
+        used = set(zip(move["state_id"], move["src_template_id"], move["t"].astype(int)))
         extra_move = move_rows(steps, episodes, ins, train_states, args.n_noop // 2, args.per_episode,
                                np.random.default_rng(args.seed + 1), exclude=used)
         n_extra_reh = args.n_noop - len(extra_move)
