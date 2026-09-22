@@ -65,3 +65,8 @@ See the migration guide at https://gymnasium.farama.org/introduction/migration_g
 [38] task 3 state 18 benign/b5: moved (300 steps, 113.6 s/ep)
 [39] task 3 state 19 harmful/h5: moved (200 steps, 113.1 s/ep)
 [40] task 3 state 19 benign/b5: moved (300 steps, 113.8 s/ep)
+[41] task 3 state 20 harmful/h5: moved (200 steps, 113.3 s/ep)
+[42] task 3 state 20 benign/b5: moved (300 steps, 113.9 s/ep)
+[43] task 3 state 21 harmful/h5: moved (200 steps, 113.5 s/ep)
+[44] task 3 state 21 benign/b5: moved (300 steps, 114.0 s/ep)
+[45] task 3 state 22 harmful/h5: moved (200 steps, 113.6 s/ep)
