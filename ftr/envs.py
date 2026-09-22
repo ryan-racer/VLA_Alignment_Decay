@@ -69,7 +69,8 @@ def make_env(bddl_path: str, resolution: int = 256, hard_reset: bool | None = No
 
     hard_reset=False (default) skips robosuite's rebuild-the-model-from-XML on every reset (~10 s with the MANO
     hand meshes; measured 11 s/restore on Colab). The fork's _reset_internal still resamples placements under
-    our seed(0) and re-sets fixture body_pos and the hand's mocap target, so the restored scene is identical;
+    our seed(0) and re-sets fixture body_pos and the hand's mocap target (which reset_to then moves to the
+    state's own hand pose), so the restored scene is identical;
     tests/test_env.py::test_same_state_restores_identically asserts it. FTR_HARD_RESET=1 restores the old behaviour."""
     from libero.libero.envs import OffScreenRenderEnv
 
@@ -83,7 +84,9 @@ def make_env(bddl_path: str, resolution: int = 256, hard_reset: bool | None = No
 def reset_to(env, state: np.ndarray, settle_steps: int = SETTLE_STEPS):
     """Deterministic restore. env.seed(0) BEFORE every reset: reset() samples fixture placement (and the hand's
     mocap target) into sim.model.body_pos, which set_init_state does not restore (openvla #342 / PR #349).
-    Calls the inner env's reset directly: the fork's wrapper swallows every exception in a retry loop."""
+    Then the hand's mocap target is moved to the pose the state records (restore_mocap_targets): without it every
+    state of a task would get the seed-0 hand pose. Calls the inner env's reset directly: the fork's wrapper
+    swallows every exception in a retry loop."""
     from robosuite.utils.errors import RandomizationError
 
     env.seed(0)
@@ -95,9 +98,32 @@ def reset_to(env, state: np.ndarray, settle_steps: int = SETTLE_STEPS):
             if attempt == 4:
                 raise
     obs = env.set_init_state(np.asarray(state, dtype=np.float64))
+    restore_mocap_targets(env)
     for _ in range(settle_steps):
         obs, _, _, _ = env.step(DUMMY_ACTION)
     return obs
+
+
+def restore_mocap_targets(env):
+    """LIBERO-Safety only. The hand is a free body welded to a mocap target. The fork samples that target's x, y in
+    _reset_internal (bddl_base_domain.py L794-862: placement sampler, z from the BDDL z_offset) and re-applies it on
+    every step (L1251, _set_mocap_motion); set_init_state (env_wrapper.py L353) restores qpos but not the target, so
+    the weld drags the hand to the sampled x, y. The init states record hands spread over 2-9 cm per task (task 0: one
+    pose). Set the target's x, y to the restored hand's (the weld has no x, y offset: the recorded x, y ARE the
+    target's at generation) and keep the sampled z and orientation (state-independent; the recorded z sits 0.2 mm
+    below it, the weld's sag). Motion generators are rebuilt so step() keeps applying the restored target."""
+    dom = env.env
+    dyn = getattr(dom, "dynamic_objects", None)
+    if not dyn:
+        return  # upstream LIBERO, or a scene without a mocap-driven object
+    for name, info in dyn.items():
+        q = np.asarray(dom.sim.data.get_joint_qpos(dom.objects_dict[name].joints[-1]), dtype=np.float64)
+        pos = np.array(dom.dyn_object_original_pos[name], dtype=np.float64)
+        pos[:2] = q[:2]
+        dom.dyn_object_original_pos[name] = pos
+        dom.sim.data.set_mocap_pos(f"{name}_main_mocap", pos)
+        dom.mocap_motion_generators[name] = dom._set_mocap_motion_generator(name, info)
+    dom.sim.forward()
 
 
 # --- gripper convention -----------------------------------------------------------------------------
@@ -279,6 +305,11 @@ def eef_pos(obs) -> list:
 
 
 # --- fixtures ---------------------------------------------------------------------------------
+
+
+def has_hand(env) -> bool:
+    """True for FSHOA scenes (a `*_with_hand` object); False for the utility suites."""
+    return any("with_hand" in n for n in env.env.objects_dict)
 
 
 def hand_object_name(env) -> str:

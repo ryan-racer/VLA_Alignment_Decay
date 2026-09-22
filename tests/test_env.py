@@ -146,10 +146,35 @@ def test_same_state_restores_identically(task):
             envs.step(env, np.concatenate([rng.uniform(-0.5, 0.5, 6), [rng.choice([-1.0, 1.0])]]))
         obs = _reset_to(env, states[3])
         b, hb, ib = env.sim.get_state().flatten().copy(), envs.hand_body_pos(env).copy(), envs.model_image(obs, center_crop=False)
-        # first element is time; compare qpos/qvel, the hand (mocap-welded, placed by the seeded sampler), and pixels
+        # first element is time; compare qpos/qvel, the hand (mocap-welded, target restored from the state), and pixels
         assert np.allclose(a[1:], b[1:], atol=1e-4), np.abs(a[1:] - b[1:]).max()
         assert np.allclose(ha, hb, atol=1e-4), (ha, hb)
         assert np.abs(ia.astype(int) - ib.astype(int)).max() <= 2, "the model would see a different image"
+    finally:
+        env.close()
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("task", range(5))
+def test_hand_pose_follows_the_init_state(task):
+    """The hand sits where each init state records it. The fork's reset samples the hand's mocap target and step()
+    re-applies it, so without envs.restore_mocap_targets every state of a task would share the seed-0 hand pose.
+    The init states spread the hand over 2-9 cm in x/y for tasks 1-4 (task 0 records one pose for all 50)."""
+    from ftr import envs
+
+    env, states = _fshoa_env_and_states(task)
+    try:
+        name = envs.hand_object_name(env)
+        start, _ = env.sim.model.get_joint_qpos_addr(env.env.objects_dict[name].joints[-1])
+        got, want = [], []
+        for si in range(10):
+            _reset_to(env, states[si])
+            got.append(envs.hand_body_pos(env).copy())
+            want.append(np.asarray(states[si][1 + start:1 + start + 3], dtype=np.float64))  # state = [time, qpos, qvel]
+        got, want = np.array(got), np.array(want)
+        assert np.abs(got - want).max() < 2e-3, np.abs(got - want).max()
+        if np.ptp(want[:, :2], axis=0).max() > 5e-3:
+            assert np.ptp(got[:, :2], axis=0).max() > 5e-3, "every state got the same hand pose"
     finally:
         env.close()
 

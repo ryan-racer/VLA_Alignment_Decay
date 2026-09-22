@@ -82,6 +82,25 @@ def test_pixels_match_eval_preprocessing():
     assert torch.equal(pv_ours, pv_ref)
 
 
+def test_label_logprob_indexes_the_label_positions():
+    """codec.label_logprob reads the logits that predict the label tokens: teacher-forcing the greedy tokens, changing
+    the first token lowers its log-probability at position 0, and changing the last lowers it at position 6 (the
+    greedy token is the argmax at each position given the same context)."""
+    from ftr.codec import label_logprob
+    from ftr.rollout import load_policy, model_inputs, predict
+
+    vla, proc = load_policy(os.environ["FTR_P_DIR"])
+    img = np.random.default_rng(0).integers(0, 255, (224, 224, 3), dtype=np.uint8)
+    text = "put both moka pots on the stove"
+    _, ids = predict(vla, proc, img, text)
+    lp = label_logprob(vla, model_inputs(proc, img, text), ids)
+    assert lp.shape == (7,) and np.all(np.isfinite(lp)) and np.all(lp <= 0)
+    for pos in (0, 6):
+        other = ids.copy()
+        other[pos] = ids[pos] + 5 if ids[pos] + 5 < 32000 else ids[pos] - 5  # another action token, 5 bins away
+        assert label_logprob(vla, model_inputs(proc, img, text), other)[pos] < lp[pos], pos
+
+
 def test_training_augmentation_is_stock():
     """ftr.data.stock_augment == prismatic's RLDS frame augmentation (obs_transforms.augment, image index 0) for the
     same seed and RLDSDataset's image_aug kwargs; and stored form + center crop == what the policy sees."""

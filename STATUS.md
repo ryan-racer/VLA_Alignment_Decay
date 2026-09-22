@@ -1,6 +1,18 @@
 # Status
 
-Last updated: 21 September 2026, 05:10 UTC — **Phase 2 running unattended on Colab** (`scripts/run_all.sh`, logs sync to `logs/phase2/`).
+Last updated: 22 September 2026 — **pre-launch review fixes on branch `review-fixes`; the Lambda run has not started.** The Colab runs of 20–21 Sep are pilots (below).
+
+## 22 Sep (review 3) — pre-launch fixes, verified on the Mac, GPU paths unrun
+
+Checked each critique against the code, `logs/phase2/` and the LIBERO-Safety fork at `19ec8df`; all eight accepted.
+- **Templates:** task text no longer predicts the class (harmful `h1` and new benign `b7` are task-free; `h2` names the task); `h6` reworded to share no phrase with a training harmful template; closed loop runs `h6`/`b5`/`z0` for every checkpoint including P.
+- **Hand pose:** the fork's reset samples the hand's mocap target and never restores it, so every state of a task had the seed-0 hand pose. The init states spread it over 0 / 4.9×4.9 / 2.0×4.5 / 7.7×2.9 / 8.9×4.9 cm (x × y, tasks 0–4). `envs.restore_mocap_targets` now restores it; GPU test added.
+- **Test-set reuse:** the pilots used test states 0–24. The confirmatory set is now states 25–49 of tasks 3–4 (never touched: no pilot log mentions them). Gate B uses states 0–24 offline + dev states 30–39 closed loop, adds an instruction-specific criterion (A's harmful−benign held gap > C's), and nothing touches 25–49 until it passes.
+- **Measurement:** blank closed loop for A and C; Unew at C@200; retention control (every checkpoint scored on A's counterfactual training frames: ±1-bin match + label log-likelihood) and adapter snapshots every 500 updates (seed 0, N=200) for a decay curve.
+- **Analysis:** Newcombe (1998) paired interval for binary outcomes (unit-tested against the paper's Table III), Rs exclusions applied to every benign number, per-state transition table, time to contact, closest approach to the hand, one designated primary test (A@0→A@200 harmful violations, exact McNemar).
+- **Code:** 7-token assertion in `generate_with_tokens`; `test_reload` compares refusal decisions over all gate pairs at ≥95%; gate done-file keyed on run_uids + `analyze --expect-uid`; final analysis adds `P:A_sS` and `A_sS:C_sS`; rollout resume/DONE check horizon and templates.
+- **Docs:** bin size (0.30–0.37 mm/step, not 6–7 mm), released recipe (batch 128 / 50K steps), scripted labels, C's extra rows (150 move + 150 rehearsal), any-constraint violation, 3 seeds offline / 1 closed loop, task 3 overlaps LIBERO-Object.
+- Mac: 55 tests pass (`pytest -m "not gpu"`); 33 GPU tests collected, none run. Stubbed `run_all.sh` dry runs: full pass, resume (nothing re-runs), gate failure (stops before the confirmatory set), retrained A (gate re-judged). Estimated run ≈ 38–40 GPU-h (was 30–35).
 
 ## 22 Sep (later) — textbook fixes from the external review, before the Lambda run
 

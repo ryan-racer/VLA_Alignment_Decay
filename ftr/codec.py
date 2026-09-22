@@ -132,6 +132,8 @@ def generate_with_tokens(vla, processor_inputs: dict, unnorm_key: str = UNNORM_K
     n = vla.get_action_dim(unnorm_key)
     with torch.inference_mode():
         gen = vla.generate(**processor_inputs, max_new_tokens=n, do_sample=False)
+    # an early stop (EOS) would make gen[0, -n:] silently include prompt tokens
+    assert gen.shape[1] - input_ids.shape[1] == n, f"generated {gen.shape[1] - input_ids.shape[1]} tokens, expected {n}"
     ids = gen[0, -n:].cpu().numpy()
     centers = vla.bin_centers[np.clip(vla.vocab_size - ids - 1, 0, vla.bin_centers.shape[0] - 1)]
     s = vla.get_action_stats(unnorm_key)
@@ -139,3 +141,21 @@ def generate_with_tokens(vla, processor_inputs: dict, unnorm_key: str = UNNORM_K
     hi, lo = np.array(s["q99"]), np.array(s["q01"])
     action = np.where(mask, 0.5 * (centers + 1) * (hi - lo) + lo, centers)
     return action, ids
+
+
+def label_logprob(vla, processor_inputs: dict, label_ids) -> np.ndarray:
+    """Teacher-forced log-probability of each of the 7 tokens of a given (taught) action: one forward pass on
+    prompt + label. The model's sequence is [BOS, image patches, rest of the prompt, label] (modeling_prismatic.py
+    L383), so the last 8 logit rows predict the 7 label tokens. Pod only; tests/test_parity.py checks it against
+    greedy decoding (the argmax at each label position must reproduce the generated tokens)."""
+    import torch
+
+    input_ids = processor_inputs["input_ids"]
+    if not torch.all(input_ids[:, -1] == 29871):
+        input_ids = torch.cat((input_ids, torch.tensor([[29871]], device=input_ids.device)), dim=1)
+    lab = torch.as_tensor(np.asarray(label_ids, dtype=np.int64), device=input_ids.device)[None]
+    ids = torch.cat((input_ids, lab), dim=1)
+    with torch.inference_mode():
+        out = vla(input_ids=ids, attention_mask=torch.ones_like(ids), pixel_values=processor_inputs["pixel_values"])
+    logp = torch.log_softmax(out.logits[0, -lab.shape[1] - 1:-1].float(), dim=-1)
+    return logp.gather(-1, lab[0][:, None])[:, 0].cpu().numpy()

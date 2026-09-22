@@ -9,8 +9,10 @@ Images are stored UNCROPPED (the RLDS-equivalent form); training augments as sto
     # 3. RLDS subset export (TF): rehearsal and personalization rows
     python -m ftr.build_data export-rlds --rlds ~/ftr/hf/rlds/libero_spatial_no_noops --episodes 30 --seed 0 --category rehearsal --out data/spatial_rehearsal.parquet
     python -m ftr.build_data export-rlds --rlds ~/ftr/hf/rlds/libero_object_no_noops --per-task 20 --seed 0 --out data/object_N200_p0.parquet
-    # 4. the arms (scripted movement labels on the training tasks in splits.csv)
-    python -m ftr.build_data mix --arm A --self runs/scripted runs/scripted_t0b --rehearsal data/spatial_rehearsal.parquet --out data/A.parquet
+    # 4. the arms (scripted movement labels on the training tasks in splits.csv); A also writes its counterfactual
+    #    frames with their taught labels, scored for every checkpoint (retention control)
+    python -m ftr.build_data mix --arm A --self runs/scripted runs/scripted_t0b --rehearsal data/spatial_rehearsal.parquet \
+        --out data/A.parquet --pairs-out data/pairs_train.parquet
 """
 
 from __future__ import annotations
@@ -239,12 +241,17 @@ def cmd_mix(args):
     rehearsal = pd.read_parquet(args.rehearsal)[["image", "instruction", "action", "category"]].copy()
     rehearsal["category"] = "rehearsal"
     move = move_rows(steps, episodes, ins, train_states, args.n_move, args.per_episode, rng)
+    move = move.assign(pair_id=np.arange(len(move)))  # a frame's id; its no-op twin inherits it
     reh = rehearsal.sample(n=min(args.n_rehearsal, len(rehearsal)), random_state=args.seed)
     n_pairs = len(move)  # no-op rows pair every movement frame; C replaces exactly that many rows
     if n_pairs < args.n_move:
         print(f"WARNING: {n_pairs} movement frames available, {args.n_move} wanted (few violation-free episodes)")
+    tp = None
     if args.arm == "A":
         parts = [noop_rows(move, ins, rng), move, reh]
+        if args.pairs_out:  # the counterfactual frames with their taught labels, in score.py's pairs format
+            tp = pd.concat([parts[1].assign(cls="benign"), parts[0].assign(cls="harmful")], ignore_index=True)
+            tp = tp.assign(frame="train", task_idx=tp["state_id"].map(lambda s: int(s.split("/")[2])))
     else:  # C
         used = set(zip(move["state_id"], move["src_template_id"], move["t"].astype(int)))
         extra_move = move_rows(steps, episodes, ins, train_states, n_pairs // 2, args.per_episode,
@@ -256,6 +263,10 @@ def cmd_mix(args):
     df = pd.concat([p[cols] for p in parts], ignore_index=True).sample(frac=1.0, random_state=args.seed).reset_index(drop=True)
     write_parquet(df, args.out)
     print(f"arm {args.arm}: {df['category'].value_counts().to_dict()} -> {args.out}")
+    if tp is not None:  # written last: run_all uses it as mix A's done-file
+        write_parquet(tp[["image", "instruction", "action", "cls", "template_id", "state_id", "task_idx", "gripper_state",
+                          "frame", "t", "pair_id"]], args.pairs_out)
+        print(f"retention pairs: {len(tp)} rows ({len(move)} frames x move/no-op) -> {args.pairs_out}")
 
 
 def main():
@@ -275,8 +286,9 @@ def main():
     m.add_argument("--instructions", default="manifests/instructions.csv"); m.add_argument("--self", nargs="+", required=True, help="scripted/self-rollout run dir(s); later dirs override earlier on the same (state, template)")
     m.add_argument("--rehearsal", required=True)
     m.add_argument("--n-move", type=int, default=300, help="movement frames; A pairs each with a no-op row")
-    m.add_argument("--n-rehearsal", type=int, default=300); m.add_argument("--train-states", default="0-29", help="per training task; 30-36 are dev")
+    m.add_argument("--n-rehearsal", type=int, default=300); m.add_argument("--train-states", default="0-29", help="per training task; 30-39 are dev")
     m.add_argument("--per-episode", type=int, default=5); m.add_argument("--seed", type=int, default=0); m.add_argument("--out", required=True)
+    m.add_argument("--pairs-out", default=None, help="arm A: also write its counterfactual frames + taught labels for score.py")
     args = ap.parse_args()
     {"render": cmd_render, "pairs": cmd_pairs, "export-rlds": cmd_export_rlds, "mix": cmd_mix}[args.cmd](args)
 

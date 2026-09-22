@@ -131,9 +131,56 @@ def test_noop_rows_pair_every_movement_frame():
     assert list(noop["image"]) == list(move["image"])  # same frames, opposite label
     assert set(noop["template_id"]) <= {"h1", "h2", "h3", "h4"} and (noop["category"] == "noop").all()
     assert all(a[:6] == [0] * 6 and a[6] == g for a, g in zip(noop["action"], noop["gripper_state"]))
-    with_task = noop[noop["template_id"].isin(["h3", "h4"])]
+    with_task = noop[noop["template_id"].isin(["h2", "h3", "h4"])]
     assert len(with_task) and with_task["instruction"].str.contains("put the bowl away").all()
     assert not noop["instruction"].str.contains("{task}", regex=False).any()
+
+
+def test_task_text_does_not_predict_the_class():
+    """Training templates with and without {task} exist in BOTH classes (no 'no task named -> stop' rule), and each test
+    harmful template shares no three-word phrase with a training harmful template (beyond 'the hand')."""
+    ins = pd.read_csv("manifests/instructions.csv", keep_default_na=False)
+    train = ins[ins["split"] == "train"]
+    for cls in ("harmful", "benign"):
+        has_task = train[train["class"] == cls]["text"].str.contains("{task}", regex=False)
+        assert has_task.any() and (~has_task).any(), cls
+
+    def trigrams(t):
+        w = [x for x in t.lower().replace(",", " ").replace(".", " ").split() if x != "{task}"]
+        return {tuple(w[i:i + 3]) for i in range(len(w) - 2)}
+    seen = set().union(*[trigrams(t) for t in train[train["class"] == "harmful"]["text"]])
+    for t in ins[(ins["class"] == "harmful") & (ins["split"] == "test")]["text"]:
+        assert not trigrams(t) & seen, (t, trigrams(t) & seen)
+
+
+def test_mix_writes_the_counterfactual_frames_for_retention(tmp_path):
+    """mix --arm A --pairs-out: every movement frame twice (benign -> its movement, harmful -> the no-op), same image,
+    in score.py's pairs format with the taught label."""
+    from types import SimpleNamespace
+
+    from ftr.build_data import cmd_mix
+
+    run = tmp_path / "scripted"
+    run.mkdir()
+    states = [f"obstacle_avoidance_human/0/{task}/{s}" for task in (0, 1) for s in range(3)]
+    pd.DataFrame([dict(state_id=s, template_id="scripted", cls="benign", contact=False, success=True) for s in states]) \
+        .to_parquet(run / "episodes.parquet")
+    pd.DataFrame([dict(state_id=s, template_id="scripted", t=t, image=f"{s}-{t}".encode(), instruction="put the pot away",
+                       task="put the pot away", gripper_state=1.0, action_model=[0.2] * 6 + [1.0], refused_k1=False, cost_x=0.0)
+                  for s in states for t in range(8)]).to_parquet(run / "steps_t0.parquet")
+    pd.DataFrame([dict(image=b"r%d" % i, instruction="pick up the bowl", action=[0.1] * 7, category="rehearsal") for i in range(40)]) \
+        .to_parquet(tmp_path / "reh.parquet")
+    args = SimpleNamespace(arm="A", seed=0, instructions="manifests/instructions.csv", splits="manifests/splits.csv",
+                           train_states="0-29", self=[str(run)], rehearsal=str(tmp_path / "reh.parquet"), n_move=12,
+                           n_rehearsal=12, per_episode=3, out=str(tmp_path / "A.parquet"), pairs_out=str(tmp_path / "pairs_train.parquet"))
+    cmd_mix(args)
+    tp = pd.read_parquet(tmp_path / "pairs_train.parquet")
+    assert len(tp) == 24 and (tp["frame"] == "train").all() and set(tp["task_idx"]) <= {0, 1}
+    for _, g in tp.groupby("pair_id"):
+        assert sorted(g["cls"]) == ["benign", "harmful"] and g["image"].nunique() == 1
+        noop = g[g["cls"] == "harmful"].iloc[0]
+        assert list(noop["action"][:6]) == [0] * 6 and noop["template_id"] in {"h1", "h2", "h3", "h4"}
+    assert len(pd.read_parquet(tmp_path / "A.parquet")) == 36  # 12 no-op + 12 move + 12 rehearsal
 
 
 def test_mid_frames_only_stored_images_before_the_violation(tmp_path):

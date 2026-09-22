@@ -122,12 +122,12 @@ Clone `DummyDataset` (`prismatic/vla/datasets/datasets.py` L180-232). Rows come 
 
 ### `codec.py`
 
-`zero_bins()` = `tokenize(normalize(zeros(6), libero_spatial))` — near 113/110/128/130/138/143, not six 128s — used by **both** the training label and the scorer, which is why they live in one file. `generate_with_tokens()` calls `vla.generate(input_ids, max_new_tokens=7, do_sample=False, **inputs)` and applies the four decode lines from `modeling_prismatic.py` L512-534; never via `predict_action(**kwargs)`.
+`zero_bins()` = `tokenize(normalize(zeros(6), libero_spatial))` — near 113/110/128/130/138/143, not six 128s — used by **both** the training label and the scorer, which is why they live in one file. `generate_with_tokens()` calls `vla.generate(input_ids, max_new_tokens=7, do_sample=False, **inputs)`, asserts that exactly 7 tokens came back, and applies the four decode lines from `modeling_prismatic.py` L512-534; never via `predict_action(**kwargs)`. `label_logprob()` is one teacher-forced forward pass on prompt + a given label (the retention control's log-likelihood).
 
 ### `envs.py`
 
 - `make_env(bddl_path)` → `OffScreenRenderEnv(bddl_file_name=…, camera_heights=256, camera_widths=256)`.
-- `reset_to(env, state)`: `env.seed(0)` **before every** `env.reset()`, then `set_init_state(np.asarray(state))`, then 10 dummy steps. Fixture poses drift 3 mm otherwise.
+- `reset_to(env, state)`: `env.seed(0)` **before every** `env.reset()`, then `set_init_state(np.asarray(state))`, then `restore_mocap_targets` (the hand's mocap target → the state's hand x, y), then 10 dummy steps. Fixture poses drift 3 mm otherwise.
 - `step_with_costs(env, action)`: after `env.step`, loop `env.env.parsed_problem['constraints']` and `_eval_predicate` each — `info['cost']` collapses same-named predicates and is suppressed on the success step. Terminate on contact in our loop; the env never does.
 - Init states: fork's `get_task_init_states(level, i)`, `torch.load(..., weights_only=False)`, tensors of shape (50, 60).
 - Fixtures: `hold` = zeros over the horizon; `contact` = P-loop on `transform_utils.get_pose_error` then ~40 press steps toward the hand.
@@ -146,11 +146,11 @@ Records: `runs/<arm>_<seed>_<N>/{args.json, episodes.parquet | predictions.parqu
 
 | Test | Asserts |
 |---|---|
-| `test_env` | versions (`mujoco==2.3.7`, pip robosuite with `output_max` 0.05); one EGL frame; P `norm_stats` has one key; same state restored twice → poses equal within 1e-4 |
+| `test_env` | versions (`mujoco==2.3.7`, pip robosuite with `output_max` 0.05); one EGL frame; P `norm_stats` has one key; same state restored twice → poses equal within 1e-4; the hand sits where each init state records it (and differs across states where they do) |
 | `test_codec` | encoded zero round-trips within one bin per dim; `refused()` true on hold tokens, false on contact tokens |
 | `test_parity` | one `modified_libero_rlds` sample through the real `RLDSBatchTransform` matches our `input_ids` **and** `labels` token-for-token, **and** our `pixel_values` equal the eval preprocessing of the same frame |
 | `test_fixtures` | contact flips the patched `checkrobotcontact`; hold does not; timeout is neither |
-| `test_reload` | merged model has exactly one `norm_stats` key; ≥95% token agreement with the unmerged adapter over 20 fixed observations (bf16 merge is not bit-exact) |
+| `test_reload` | merged model has exactly one `norm_stats` key; the same refusal decision as the unmerged adapter on ≥95% of all gate pairs (bf16 merge is not bit-exact; token agreement and max action difference reported) |
 
 ## Gotchas (each costs a day if missed)
 
@@ -174,7 +174,10 @@ Records: `runs/<arm>_<seed>_<N>/{args.json, episodes.parquet | predictions.parqu
 | 16 | Drive is 10 GB; a merged 7B checkpoint is ~15 GB (Colab era) | Checkpoints on local disk, adapters + results under `$DATA`; re-merge is deterministic (`--merge_only`) |
 | 17 | Retraining is not bit-identical (flash-attn backward), and a re-trained checkpoint silently mixed with old results on Colab | `finetune` writes `run_uid` (+ `base_uid`) into DONE; rollouts/scores record it; resume refuses a different uid; `analyze` refuses two uids under one name; `--merge_only` checks the base |
 | 18 | Stock OpenVLA trains with random crop + colour jitter and evaluates with a 0.9 center crop | Stored images are uncropped (RLDS form); `ParquetTransitions` applies `data.stock_augment` (dlimp, RLDSDataset kwargs); rollouts/score center-crop; parity test against `obs_transforms.augment` |
-| 19 | Harmful templates lacked task text and no-op rows were all first frames: two label shortcuts | Half the harmful templates contain `{task}`; no-op rows reuse the movement frames (counterfactual pairs); offline eval on first AND mid-trajectory frames |
+| 19 | Harmful templates lacked task text and no-op rows were all first frames: two label shortcuts | Task text with and without in both classes (`h1` / `b7` task-free); no-op rows reuse the movement frames (counterfactual pairs); offline eval on first AND mid-trajectory frames; closed loop on `h6`/`b5` (both name the task) |
+| 20 | The fork's reset samples the hand's mocap target and `step()` re-applies it; `set_init_state` restores qpos only → every init state of a task gets the seed-0 hand pose (the init states spread it 2–9 cm) | `envs.restore_mocap_targets` after `set_init_state`; `test_hand_pose_follows_the_init_state` |
+| 21 | The pilots looked at test states 0–24 before design choices were made (test-set reuse) | Confirmatory set = states 25–49; 0–24 only for Gate B's offline screen; nothing touches 25–49 until the gate passes |
+| 22 | A skipped stage reuses results measured on earlier weights of the same name | Gate done-file names the run_uids; `analyze --expect-uid` refuses results from other weights; rollout resume also checks horizon and templates |
 
 ## Not adopted, and why
 

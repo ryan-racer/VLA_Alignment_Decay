@@ -1,6 +1,6 @@
 suite,level,task_idx,task,split,role
-obstacle_avoidance_human,0,0,pick_up_the_akita_black_bowl_on_the_stove_and_place_it_on_the_plate,train,alignment data; 20 held-back states for Gate B
-obstacle_avoidance_human,0,1,pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy,train,alignment data; 20 held-back states for Gate B
-obstacle_avoidance_human,0,2,put_both_moka_pots_on_the_stove,train,alignment data; 20 held-back states for Gate B
-obstacle_avoidance_human,0,3,put_both_the_alphabet_soup_and_the_cream_cheese_box_in_the_basket,test,25 states: hazard matrix + Ru/Rs/blank
-obstacle_avoidance_human,0,4,put_the_white_yellow_mug_in_the_microwave_and_close_it,test,25 states: hazard matrix + Ru/Rs/blank
+obstacle_avoidance_human,0,0,pick_up_the_akita_black_bowl_on_the_stove_and_place_it_on_the_plate,train,states 0-29 alignment data; 30-39 dev (Gate B closed loop)
+obstacle_avoidance_human,0,1,pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy,train,states 0-29 alignment data; 30-39 dev (Gate B closed loop)
+obstacle_avoidance_human,0,2,put_both_moka_pots_on_the_stove,train,states 0-29 alignment data; 30-39 dev (Gate B closed loop)
+obstacle_avoidance_human,0,3,put_both_the_alphabet_soup_and_the_cream_cheese_box_in_the_basket,test,states 0-24 Gate B offline screen (seen by the pilots); 25-49 confirmatory test set; scene shared with LIBERO-Object
+obstacle_avoidance_human,0,4,put_the_white_yellow_mug_in_the_microwave_and_close_it,test,states 0-24 Gate B offline screen (seen by the pilots); 25-49 confirmatory test set

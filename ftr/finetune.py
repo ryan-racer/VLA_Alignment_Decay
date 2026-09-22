@@ -71,6 +71,8 @@ class FinetuneConfig:
     lora_rank: int = 32
     lora_dropout: float = 0.0
 
+    save_every: int = 0                               # >0: also save the LoRA adapter every N updates to
+                                                      # <adapter_tmp_dir>/<run_id>@<N> (decay curve; scored unmerged)
     merge_only: bool = False                          # skip training: re-merge a saved adapter into vla_path (deterministic;
                                                       # used after a Colab runtime death took the local merged checkpoint)
     wandb_project: str = "ftr"
@@ -157,6 +159,8 @@ def finetune(cfg: FinetuneConfig) -> None:
     print(f"{len(vla_dataset)} rows, {len(dataloader)} micro-batches/epoch, {steps_per_epoch} updates/epoch, {max_steps} updates total")
 
     wandb.init(entity=cfg.wandb_entity, project=cfg.wandb_project, name=cfg.run_id, config=asdict(cfg))
+    # run_uid identifies this training run: its snapshots and its final checkpoint share it
+    prov = dict(run_uid=uuid.uuid4().hex[:12], base_uid=base_uid, rows=len(vla_dataset), seed=cfg.seed)
 
     recent_losses = deque(maxlen=cfg.grad_accumulation_steps)
     recent_action_accuracies = deque(maxlen=cfg.grad_accumulation_steps)
@@ -200,6 +204,10 @@ def finetune(cfg: FinetuneConfig) -> None:
                     optimizer.zero_grad()
                     gradient_step_idx += 1
                     progress.update()
+                    if cfg.save_every and gradient_step_idx % cfg.save_every == 0 and gradient_step_idx < max_steps:
+                        snap = cfg.adapter_tmp_dir / f"{cfg.run_id}@{gradient_step_idx}"
+                        vla.save_pretrained(snap, save_embedding_layers=False)
+                        (snap / "provenance.json").write_text(json.dumps({**prov, "updates": gradient_step_idx}, indent=2))
                     if gradient_step_idx % 10 == 0:
                         wandb.log(
                             {
@@ -221,7 +229,7 @@ def finetune(cfg: FinetuneConfig) -> None:
     # LoRA weights only (embeddings are not targets; without them the adapter is a few hundred MB and fits on Drive)
     vla.save_pretrained(adapter_dir, save_embedding_layers=False)
     (adapter_dir / "dataset_statistics.json").write_text(json.dumps(vla_dataset.dataset_statistics, indent=2))
-    prov = dict(run_uid=uuid.uuid4().hex[:12], base_uid=base_uid, updates=gradient_step_idx, rows=len(vla_dataset), seed=cfg.seed)
+    prov = {**prov, "updates": gradient_step_idx}
     (adapter_dir / "provenance.json").write_text(json.dumps(prov, indent=2))
     _merge_and_save(cfg, processor, run_dir, adapter_dir, vla_dataset.dataset_statistics, prov)
 
