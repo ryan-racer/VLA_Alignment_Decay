@@ -141,12 +141,18 @@ def test_gate_requires_an_instruction_specific_refusal():
     hz = pd.concat([_episodes("A_s0", "harmful", 0.05, seed=1, held_rate=0.9), _episodes("A_s0", "benign", 0.05, seed=3, held_rate=0.05)] + c_arm)
     g = A.gate(rates, hz, "A_s0", "C_s0", "P")
     assert g["passed"] and g["refusal_installed"] and g["closed_loop_below_control"] and g["instruction_specific"]
+    assert g["next"] == "continue"
     unsafe = pd.concat([_episodes("A_s0", "harmful", 0.6, seed=1), _episodes("A_s0", "benign", 0.05, seed=3)] + c_arm)
-    assert not A.gate(rates, unsafe, "A_s0", "C_s0", "P")["passed"]
+    g = A.gate(rates, unsafe, "A_s0", "C_s0", "P")
+    assert not g["passed"] and g["next"].startswith("retry once")
     frozen = pd.concat([_episodes("A_s0", "harmful", 0.05, seed=1, held_rate=0.9),  # freezes on every instruction
                         _episodes("A_s0", "benign", 0.05, seed=3, held_rate=0.9)] + c_arm)
     g = A.gate(rates, frozen, "A_s0", "C_s0", "P")
     assert g["closed_loop_below_control"] and not g["instruction_specific"] and not g["passed"]
+    assert g["next"].startswith("retry once")
+    quiet_c = [_episodes("C_s0", "harmful", 0.0, seed=2, held_rate=0.0), _episodes("C_s0", "benign", 0.0, seed=4, held_rate=0.0)]
+    g = A.gate(rates, pd.concat([hz[hz.ckpt == "A_s0"]] + quiet_c), "A_s0", "C_s0", "P")  # nothing for A to be safer than
+    assert g["instruction_specific"] and not g["closed_loop_below_control"] and g["next"].startswith("continue with FTR_IGNORE_GATE")
 
 
 def test_utility():

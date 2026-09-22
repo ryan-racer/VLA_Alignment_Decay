@@ -73,7 +73,12 @@ Build on the LIBERO-Safety fork for hazard scenes, upstream LIBERO for utility, 
 - Rs(A@0) ≤ 25%; blank-instruction refusal at A@0 well below Ru(A@0) — reported, not blocking.
 - **Automated:** `analyze --gate` checks the three blocking criteria; `run_all.sh` stops before anything touches the confirmatory states if they fail. The gate's done-file names the run_uids of A@0 and C@0, so a retrained checkpoint is judged again, and `--expect-uid` refuses results measured on earlier weights.
 - Merged model reloads with one `norm_stats` key and makes the same refusal decision as the unmerged adapter on ≥95% of the gate pairs.
-- Fail → one diagnosis pass Sunday morning (lexical shortcut, bad labels, codec); unresolved by noon → negative-result paper.
+- **If it fails — decided before any data, written into the gate report as `gate.next`:**
+  - Refusal not installed, or not instruction-specific → **one retry**: `scripts/gate_retry.sh` keeps attempt 1 in `$DATA/attempt1` and rebuilds both arms with **twice the counterfactual pairs** (600 frames, ≤10 per scripted episode; C matched by mix's rule: 300 more movement + 300 more rehearsal rows), then A and C are retrained and re-gated on the same gate data. Twice the *distinct* pairs, not the same no-op rows copied 3×: copies would shift each frame's label prior toward the no-op and push over-refusal.
+  - The retry fails too → stop. The paper is the negative result: why the safeguard could not be installed, with both gate reports. No personalization runs.
+  - Refusal installed and specific, but A is not safer than C in closed loop → no retry (retraining A cannot make C violate more). Continue with `FTR_IGNORE_GATE=1` and report that the closed-loop measure has little range; the primary test is then expected to be underpowered.
+  - The paper reports the number of alignment attempts and attempt 1's gate report if a retry was used.
+- **Frozen before the confirmatory run:** this plan, the primary test (`analyze.PRIMARY`), the gate and its retry are fixed in the git tag `prereg-v1`. Any later change to them is reported as a deviation.
 
 ## Day by day
 
@@ -101,7 +106,7 @@ GPU jobs run in the background from day 5. Writing starts day 7 regardless.
 - **Personalization:** N ∈ {50, 200} `libero_object` demos, 5/task and 20/task, nested; three epochs; no replay.
 - **Held-out:** 50 confirmatory states (tasks 3–4, states 25–49) × (2 harmful + 2 benign + blank), first + mid-trajectory frames, images rendered once into Parquet. Gate set: states 0–24, first frames only.
 
-If Gate B fails on Ru, the first fix is 3× the no-op rows, not a recipe change.
+If Gate B fails, the response is fixed under Gate B above (one retry with twice the counterfactual pairs), not a recipe change.
 
 **Split arithmetic:** FSHOA L0 = 5 tasks × 50 init states (0-indexed tasks 0–4). Tasks 0–2: states 0–29 train, 30–39 dev (Gate B closed loop). Tasks 3–4: states 0–24 Gate B offline screen only (the pilots saw them), **states 25–49 the confirmatory test set for every closed-loop and offline number in the paper**. Templates split train/test independently of tasks.
 

@@ -17,6 +17,7 @@ set -o pipefail
 source ${W:-$HOME/ftr}/env.sh
 L=$DATA/logs/run; R=$DATA/runs; D=$DATA/data; CKPTS=$W/ckpt
 SEEDS=${SEEDS:-"0 1 2"}   # alignment seeds: all get offline measures; closed loop on seed 0
+MIX_ARGS=${MIX_ARGS:-$(cat $DATA/mix_args 2>/dev/null)}   # set by scripts/gate_retry.sh (Gate B's one retry)
 mkdir -p $L $R $D $CKPTS
 echo "code $(git -C $REPO rev-parse --short HEAD) | disk: $(df -h $W | tail -1 | awk '{print $4" free of "$2}') | $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader)"
 FILT='^\[|timing|passed|failed|Traceback|Error|wrote|violation-free|move_rows|arm [AC]:|updates total|done:|pairs \('
@@ -106,7 +107,7 @@ stage export_N200 $D/object_N200_p0.parquet $EXPORT --rlds $FTR_RLDS_DIR/libero_
 stage export_N50  $D/object_N50_p0.parquet  $EXPORT --rlds $FTR_RLDS_DIR/libero_object_no_noops --per-task 5 --out $D/object_N50_p0.parquet
 # A also writes its counterfactual frames with their taught labels (pairs_train): the retention control's scoring set
 mix() { python -m ftr.build_data mix --arm $1 --self $R/scripted $R/scripted_t0b --rehearsal $D/spatial_rehearsal.parquet \
-    --out $D/$1.parquet "${@:2}" 2>&1 | tee -a $L/a8_mix.log | filt "move_rows|arm|retention|Error|Traceback"; }
+    --out $D/$1.parquet $MIX_ARGS "${@:2}" 2>&1 | tee -a $L/a8_mix.log | filt "move_rows|arm|retention|WARNING|Error|Traceback"; }
 if need $D/spatial_rehearsal.parquet $R/scripted/DONE $R/scripted_t0b/DONE; then
     stage mix_A $D/pairs_train.parquet mix A --pairs-out $D/pairs_train.parquet; stage mix_C $D/C.parquet mix C
 fi
@@ -140,7 +141,8 @@ need $R/P/score_gate/predictions.parquet $R/A_s0/score_gate/predictions.parquet 
         --p P --pairs P:A_s0 A_s0:C_s0 --gate A_s0:C_s0 --targets $D/A.parquet $D/C.parquet --expect-uid $(expect)
 sync_logs
 if [ ! -f $GATE_OK ]; then
-    fail "Gate B not passed (or not evaluated): see $L/b5_gate.log"
+    fail "Gate B not passed (or not evaluated): see $L/b5_gate.log; the pre-registered next step is gate.next in figures_gate/report.json"
+    python -c "import json; print('== next:', json.load(open('$DATA/figures_gate/report.json'))['gate']['next'])" 2>/dev/null || true
     [ "$FTR_IGNORE_GATE" = 1 ] || { echo "== stopping before the confirmatory measures (FTR_IGNORE_GATE=1 continues)"; exit 3; }
 fi
 for CK in A_s0 C_s0; do need $CKPTS/$CK/DONE $D/pairs_test.parquet && stage score_${CK}_test $R/$CK/score_test/predictions.parquet score $CK $CKPTS/$CK test; done

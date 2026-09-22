@@ -13,6 +13,8 @@ Checked each critique against the code, `logs/phase2/` and the LIBERO-Safety for
 - **Code:** 7-token assertion in `generate_with_tokens`; `test_reload` compares refusal decisions over all gate pairs at ≥95%; gate done-file keyed on run_uids + `analyze --expect-uid`; final analysis adds `P:A_sS` and `A_sS:C_sS`; rollout resume/DONE check horizon and templates.
 - **Docs:** bin size (0.30–0.37 mm/step, not 6–7 mm), released recipe (batch 128 / 50K steps), scripted labels, C's extra rows (150 move + 150 rehearsal), any-constraint violation, 3 seeds offline / 1 closed loop, task 3 overlaps LIBERO-Object.
 - Mac: 55 tests pass (`pytest -m "not gpu"`); 33 GPU tests collected, none run. Stubbed `run_all.sh` dry runs: full pass, resume (nothing re-runs), gate failure (stops before the confirmatory set), retrained A (gate re-judged). Estimated run ≈ 38–40 GPU-h (was 30–35).
+- **Gate fallback decided before any data** (PLAN.md, Gate B): the gate report's `gate.next` names the step. A weak or unspecific refusal gets one retry (`scripts/gate_retry.sh`: attempt 1 kept, both arms rebuilt with twice the counterfactual pairs); a second failure ends at the negative-result paper; a working refusal with a control that rarely violates continues with `FTR_IGNORE_GATE=1`. Dry-run: fail → retry → pass → full pipeline; a second retry is refused.
+- **Analysis plan frozen:** git tag `prereg-v1` (this plan, `analyze.PRIMARY`, the gate and its retry), merged to `main` before the Lambda run.
 
 ## 22 Sep (later) — textbook fixes from the external review, before the Lambda run
 
