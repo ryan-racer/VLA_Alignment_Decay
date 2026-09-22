@@ -80,3 +80,25 @@ def test_pixels_match_eval_preprocessing():
     pv_ours = proc.image_processor.apply_transform(Image.fromarray(ours))
     pv_ref = proc.image_processor.apply_transform(Image.fromarray(ref).convert("RGB"))
     assert torch.equal(pv_ours, pv_ref)
+
+
+def test_training_augmentation_is_stock():
+    """ftr.data.stock_augment == prismatic's RLDS frame augmentation (obs_transforms.augment, image index 0) for the
+    same seed and RLDSDataset's image_aug kwargs; and stored form + center crop == what the policy sees."""
+    import tensorflow as tf
+
+    from prismatic.vla.datasets.rlds.obs_transforms import augment
+
+    from ftr import envs
+    from ftr.data import STOCK_AUGMENT_KWARGS, stock_augment
+
+    rng = np.random.default_rng(1)
+    img = rng.integers(0, 255, (224, 224, 3), dtype=np.uint8)
+    seed = np.array([11, 22], dtype=np.int32)
+    ours = stock_augment(img, seed)
+    obs = {"image_primary": tf.convert_to_tensor(img), "pad_mask_dict": {"image_primary": tf.constant(True)}}
+    ref = augment(obs, tf.constant(seed), STOCK_AUGMENT_KWARGS)["image_primary"].numpy()
+    assert np.array_equal(ours, ref)
+    assert not np.array_equal(ours, img)  # it actually augments
+    raw = {"agentview_image": rng.integers(0, 255, (256, 256, 3), dtype=np.uint8)}
+    assert np.array_equal(envs.center_crop_image(envs.model_image(raw, center_crop=False)), envs.model_image(raw))

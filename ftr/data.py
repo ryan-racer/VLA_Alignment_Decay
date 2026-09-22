@@ -2,8 +2,9 @@
 prismatic/vla/datasets/datasets.py L38-67, L180-232) exactly; the parity test on the pod proves it.
 
 Row contract (one Parquet per arm, written by build_data.py):
-  image        PNG bytes, 224x224, already through the EVAL preprocessing (180° rotate, lanczos resize,
-               0.9 center-crop-and-resize) so train and test pixels go through the same function
+  image        PNG bytes, 224x224, the STORED form (envs.model_image(center_crop=False): 180° rotate, JPEG round-trip,
+               lanczos resize) = what OpenVLA's RLDS pipeline holds before augmentation. Training applies the stock
+               random crop + colour jitter (stock_augment); evaluation applies the stock 0.9 center crop.
   instruction  str (lower-cased at use)
   action       7 floats, raw simulator units on dims 0-5, gripper on dim 6 in RLDS convention: [0,1], +1 = open
   category     'noop' | 'move' | 'rehearsal' | 'personalize'  (informational; the Dataset ignores it)
@@ -59,12 +60,13 @@ def build_example(tokenizer, image_transform, codec: Codec, image: Image.Image, 
 
 
 class ParquetTransitions(Dataset):
-    """Map-style Dataset over one arm's Parquet (see row contract above); yields DummyDataset-shaped dicts."""
-    def __init__(self, parquet_path: str | Path, tokenizer, image_transform, codec: Codec | None = None):
+    """Map-style Dataset over one arm's Parquet (see row contract above); yields DummyDataset-shaped dicts.
+    image_fn (uint8 HxWx3 -> uint8 HxWx3) runs before the processor: finetune.py passes stock_augment."""
+    def __init__(self, parquet_path: str | Path, tokenizer, image_transform, codec: Codec | None = None, image_fn=None):
         self.df = pd.read_parquet(parquet_path)
         for col in ("image", "instruction", "action"):
             assert col in self.df.columns, f"missing column {col}"
-        self.tokenizer, self.image_transform = tokenizer, image_transform
+        self.tokenizer, self.image_transform, self.image_fn = tokenizer, image_transform, image_fn
         self.codec = codec or Codec()
         # finetune.py writes this next to the checkpoint; predict_action reads it back. Frozen to P's key.
         self.dataset_statistics = {
@@ -77,6 +79,8 @@ class ParquetTransitions(Dataset):
     def __getitem__(self, i):
         row = self.df.iloc[i]
         image = Image.open(io.BytesIO(row["image"])).convert("RGB")
+        if self.image_fn is not None:
+            image = Image.fromarray(self.image_fn(np.asarray(image)))
         return build_example(
             self.tokenizer, self.image_transform, self.codec, image, str(row["instruction"]), np.asarray(row["action"])
         )
@@ -87,3 +91,67 @@ def image_to_png_bytes(img: np.ndarray) -> bytes:
     buf = io.BytesIO()
     Image.fromarray(np.asarray(img, dtype=np.uint8)).save(buf, format="PNG")
     return buf.getvalue()
+
+
+# openvla @ c8f03f4, prismatic/vla/datasets/datasets.py L122-136 (RLDSDataset, image_aug=True, the finetune.py default)
+STOCK_AUGMENT_KWARGS = dict(
+    random_resized_crop=dict(scale=[0.9, 0.9], ratio=[1.0, 1.0]),
+    random_brightness=[0.2],
+    random_contrast=[0.8, 1.2],
+    random_saturation=[0.8, 1.2],
+    random_hue=[0.05],
+    augment_order=["random_resized_crop", "random_brightness", "random_contrast", "random_saturation", "random_hue"],
+)
+_TF_READY = False
+
+
+def stock_augment(img: np.ndarray, seed=None) -> np.ndarray:
+    """The stock training augmentation: dlimp's augment_image with RLDSDataset's kwargs (called per image, as the
+    RLDS frame transform does). TF runs on CPU only, as in prismatic's RLDS module. Pod only (TF + dlimp)."""
+    global _TF_READY
+    import tensorflow as tf
+
+    if not _TF_READY:
+        try:
+            tf.config.set_visible_devices([], "GPU")
+        except RuntimeError:
+            pass  # TF already initialized (e.g. prismatic's RLDS module ran the same call first)
+        _TF_READY = True
+    import dlimp as dl
+
+    if seed is None:
+        seed = torch.randint(0, 2**31 - 1, (2,)).numpy()  # torch RNG: seeded by finetune.py
+    seed = tf.constant(np.asarray(seed), dtype=tf.int32)
+    return dl.transforms.augment_image(tf.convert_to_tensor(img), **STOCK_AUGMENT_KWARGS, seed=seed).numpy()
+
+
+def _done_fields(ckpt) -> dict:
+    d = Path(str(ckpt)) / "DONE"
+    return dict(l.split("=", 1) for l in d.read_text().splitlines() if "=" in l) if d.exists() else {}
+
+
+def ckpt_uid(ckpt) -> str:
+    """Identity of a checkpoint: the run_uid finetune.py writes into DONE (a re-merge of the same adapter keeps it),
+    or, for a checkpoint we did not train (P, no DONE), a hash of its config.json. Stored with every result."""
+    import hashlib
+
+    f = _done_fields(ckpt)
+    if f:
+        assert "run_uid" in f, f"{ckpt}/DONE has no run_uid (written by older code): retrain or re-merge it"
+        return f["run_uid"]
+    return "base-" + hashlib.sha1((Path(str(ckpt)) / "config.json").read_bytes()).hexdigest()[:12]
+
+
+def ckpt_base_uid(ckpt) -> str:
+    """The uid of the checkpoint this one was fine-tuned from ('' for P). analyze checks parent/child lineage."""
+    return _done_fields(ckpt).get("base_uid", "")
+
+
+def write_parquet(df: pd.DataFrame, path) -> None:
+    """Atomic Parquet write: a killed process never leaves a truncated file that a done-file check would accept."""
+    import os
+
+    path = Path(path)
+    tmp = path.with_name(path.name + ".tmp")
+    df.to_parquet(tmp)
+    os.replace(tmp, path)

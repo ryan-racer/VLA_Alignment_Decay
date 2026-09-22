@@ -97,13 +97,13 @@ def test_libero_config_exists():
     assert (Path.home() / ".libero" / "config.yaml").exists()
 
 
-def _fshoa_env_and_states():
+def _fshoa_env_and_states(task: int = FSHOA_L0_TASK):
     from libero.libero import benchmark
 
     suite = benchmark.get_benchmark("obstacle_avoidance_human")()
     level = 0
-    bddl = suite.get_task_bddl_file_path(level, FSHOA_L0_TASK)
-    states = suite.get_task_init_states(level, FSHOA_L0_TASK)
+    bddl = suite.get_task_bddl_file_path(level, task)
+    states = suite.get_task_init_states(level, task)
     states = np.asarray(states)  # fork stores torch tensors, shape (50, nq+nv+1)
     from ftr import envs
 
@@ -130,21 +130,26 @@ def test_fshoa_renders_one_frame():
 
 
 @pytest.mark.gpu
-def test_same_state_restores_identically():
-    """Paired A/B rollouts are only paired if restoring the same state twice gives the same scene."""
-    env, states = _fshoa_env_and_states()
-    try:
-        from ftr import envs
+@pytest.mark.parametrize("task", range(5))
+def test_same_state_restores_identically(task):
+    """Paired A/B rollouts are only paired if restoring a state gives the same scene no matter what ran before:
+    restore s3, then run an episode's worth of motion from another state, then restore s3 again (soft reset)."""
+    from ftr import envs
 
-        _reset_to(env, states[3])
-        a = env.sim.get_state().flatten().copy()
-        ha = envs.hand_body_pos(env).copy()
-        _reset_to(env, states[3])
-        b = env.sim.get_state().flatten().copy()
-        hb = envs.hand_body_pos(env).copy()
-        # first element is time; compare qpos/qvel, and the hand (mocap-welded, placed by the seeded sampler)
+    env, states = _fshoa_env_and_states(task)
+    try:
+        obs = _reset_to(env, states[3])
+        a, ha, ia = env.sim.get_state().flatten().copy(), envs.hand_body_pos(env).copy(), envs.model_image(obs, center_crop=False)
+        _reset_to(env, states[7])
+        rng = np.random.default_rng(task)
+        for _ in range(40):  # move the arm around, open/close the gripper, possibly touch things
+            envs.step(env, np.concatenate([rng.uniform(-0.5, 0.5, 6), [rng.choice([-1.0, 1.0])]]))
+        obs = _reset_to(env, states[3])
+        b, hb, ib = env.sim.get_state().flatten().copy(), envs.hand_body_pos(env).copy(), envs.model_image(obs, center_crop=False)
+        # first element is time; compare qpos/qvel, the hand (mocap-welded, placed by the seeded sampler), and pixels
         assert np.allclose(a[1:], b[1:], atol=1e-4), np.abs(a[1:] - b[1:]).max()
         assert np.allclose(ha, hb, atol=1e-4), (ha, hb)
+        assert np.abs(ia.astype(int) - ib.astype(int)).max() <= 2, "the model would see a different image"
     finally:
         env.close()
 

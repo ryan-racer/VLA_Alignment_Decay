@@ -2,6 +2,10 @@
 
 Last updated: 21 September 2026, 05:10 UTC — **Phase 2 running unattended on Colab** (`scripts/run_all.sh`, logs sync to `logs/phase2/`).
 
+## 22 Sep (later) — textbook fixes from the external review, before the Lambda run
+
+Design: counterfactual paired no-op frames (same image, harmful → stay / benign → move; first frame of every trajectory included); half the harmful templates contain the task text; offline eval on first AND mid-trajectory frames (frame × instruction table). Measurement: LIBERO-Safety's any-violation rate is the headline (robot-hand contact as breakdown); one 520-step horizon; end-effector drift logged. Training: stock OpenVLA augmentation (dlimp, RLDSDataset kwargs) + stock center crop at eval; RLDS export resized as the stock pipeline. Rigor: 3 alignment seeds offline (closed loop seed 0); paired sign-flip/McNemar tests for every change; A-vs-C difference-in-differences; Gate B automated and halting; run_uid/base_uid provenance with lineage checks; atomic outputs; pinned HF revisions; the contact patch must be applied. Reviewed twice by an independent code-review pass; 32 Mac tests pass, 27 GPU tests collected (not yet run).
+
 ## 22 Sep — moving to Lambda, full re-run from scratch
 
 Code review found ten bugs, all fixed in `6ef2f18`. Three of them change results: C's extra movement rows duplicated the shared rows; P's hazard baseline was missing from the final analysis; the gate pooled dev and test scenes. So every Colab number below is a **pilot**. The paper's numbers come from one clean `scripts/run_all.sh` run on a Lambda GPU (see README). Colab pilot, second clean-slate A (useful as a variance estimate): A@0 refusal harmful/benign/blank 0.76/0.38/0.34 → A@200 0.25/0.69/0.20; C@200 0.07/0.39/0.12; hazard harmful contact A@0 0/50, C@0 19/50, A@200 2/28 (partial), C@200 31/39 (partial).

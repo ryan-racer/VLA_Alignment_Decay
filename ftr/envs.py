@@ -21,9 +21,8 @@ HOLD_ACTION = [0, 0, 0, 0, 0, 0, -1]
 SETTLE_STEPS = 10
 MAX_STEPS = {"libero_spatial": 220, "libero_object": 280, "libero_goal": 300, "libero_10": 520, "libero_90": 400,
              "obstacle_avoidance_human": 520}  # FSHOA L0: four LIBERO-10 layouts + one LIBERO-90 scene; 520 as LIBERO-10
-# Hazard-scene horizons by instruction class (PLAN.md, after the Phase 1 smoke run: P strikes the hand in 25-35 steps,
-# benign contacts happen at 160-240 steps, a held refusal costs the full horizon at ~0.5 s/step).
-HAZARD_HORIZON = {"harmful": 200, "benign": 300, "blank": 200}
+# One horizon for every instruction class: OpenVLA's LIBERO-10 value (FSHOA L0 = four LIBERO-10 layouts + one
+# LIBERO-90 scene). LIBERO-Safety itself ships no evaluation loop and defines no horizon for these suites.
 FORK_SUITES = ("obstacle_avoidance_human", "human_safety", "obstacle_avoidance", "affordance", "reasoning_safety")
 
 
@@ -245,19 +244,38 @@ def any_contact(costs: dict) -> bool:
 
 
 def model_image(obs, center_crop: bool = True) -> np.ndarray:
-    """The exact eval-side preprocessing: 180° rotate + JPEG round-trip + lanczos 224 (get_libero_image),
-    then the 0.9 center-crop-and-resize get_vla_action applies when --center_crop True. Used for rollouts
-    AND for every training image, so train/test pixels share one path."""
-    import tensorflow as tf
+    """Stock eval preprocessing: 180° rotate + JPEG round-trip + lanczos 224 (get_libero_image), then the 0.9
+    center-crop-and-resize get_vla_action applies with center_crop=True (stock for models fine-tuned with image
+    augmentation). center_crop=False is the STORED form (training rows, offline pairs): the same pixels the RLDS
+    training pipeline sees before its random crop, so storage + center_crop() == what the policy sees."""
     from experiments.robot.libero.libero_utils import get_libero_image
-    from experiments.robot.openvla_utils import crop_and_resize
 
     img = get_libero_image(obs, 224)
-    if center_crop:
-        t = tf.image.convert_image_dtype(tf.convert_to_tensor(img), tf.float32)
-        t = crop_and_resize(t, 0.9, 1)
-        img = tf.image.convert_image_dtype(tf.clip_by_value(t, 0, 1), tf.uint8, saturate=True).numpy()
-    return img
+    return center_crop_image(img) if center_crop else img
+
+
+def center_crop_image(img: np.ndarray) -> np.ndarray:
+    """get_vla_action's center_crop=True step (crop_and_resize 0.9 area, batch 1), uint8 in and out."""
+    import tensorflow as tf
+    from experiments.robot.openvla_utils import crop_and_resize
+
+    t = tf.image.convert_image_dtype(tf.convert_to_tensor(img), tf.float32)
+    t = crop_and_resize(t, 0.9, 1)
+    return tf.image.convert_image_dtype(tf.clip_by_value(t, 0, 1), tf.uint8, saturate=True).numpy()
+
+
+def policy_view(png: bytes) -> np.ndarray:
+    """A stored image (PNG bytes, uncropped) as the policy sees it: decode + the stock center crop."""
+    import io
+
+    from PIL import Image
+
+    return center_crop_image(np.asarray(Image.open(io.BytesIO(png)).convert("RGB")))
+
+
+def eef_pos(obs) -> list:
+    """End-effector position (m); logged per step so drift of a 'held' robot can be reported."""
+    return [float(x) for x in obs["robot0_eef_pos"]]
 
 
 # --- fixtures ---------------------------------------------------------------------------------

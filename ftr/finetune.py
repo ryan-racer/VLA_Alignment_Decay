@@ -18,6 +18,7 @@ import os
 import random
 import shutil
 import subprocess
+import uuid
 from collections import deque
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -41,7 +42,7 @@ from prismatic.util.data_utils import PaddedCollatorForActionPrediction
 from prismatic.vla.action_tokenizer import ActionTokenizer
 
 from ftr.codec import UNNORM_KEY, Codec
-from ftr.data import ParquetTransitions
+from ftr.data import ParquetTransitions, ckpt_uid, stock_augment
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -63,7 +64,9 @@ class FinetuneConfig:
     learning_rate: float = 5e-4
     grad_clip: float = 1.0
     seed: int = 0
-    num_workers: int = 4
+    num_workers: int = 0                              # TF augmentation in the main process (no TF in forked workers after
+                                                      # CUDA init); costs ~15% wall time, not correctness
+    image_aug: bool = True                            # stock finetune.py default: random crop + colour jitter (dlimp)
 
     lora_rank: int = 32
     lora_dropout: float = 0.0
@@ -102,7 +105,9 @@ def finetune(cfg: FinetuneConfig) -> None:
 
     run_dir, adapter_dir = cfg.run_root_dir / cfg.run_id, cfg.adapter_tmp_dir / cfg.run_id
     os.makedirs(run_dir, exist_ok=True)
-    (run_dir / "args.json").write_text(json.dumps({**asdict(cfg), "git_sha": _git_sha()}, default=str, indent=2))
+    base_uid = ckpt_uid(cfg.vla_path)
+    if not cfg.merge_only:  # a re-merge must not overwrite the record of the training run
+        (run_dir / "args.json").write_text(json.dumps({**asdict(cfg), "git_sha": _git_sha(), "base_uid": base_uid}, default=str, indent=2))
 
     AutoConfig.register("openvla", OpenVLAConfig)
     AutoImageProcessor.register(OpenVLAConfig, PrismaticImageProcessor)
@@ -112,10 +117,10 @@ def finetune(cfg: FinetuneConfig) -> None:
     processor = AutoProcessor.from_pretrained(cfg.vla_path, trust_remote_code=True)
     if cfg.merge_only:
         assert (adapter_dir / "adapter_config.json").exists(), f"no adapter at {adapter_dir}"
-        stats_f = adapter_dir / "dataset_statistics.json"  # frozen to P's key either way (ftr.data.ParquetTransitions)
-        stats = json.loads(stats_f.read_text()) if stats_f.exists() else \
-            {UNNORM_KEY: {"action": {k: np.asarray(v).tolist() for k, v in Codec().stats.items()}}}
-        _merge_and_save(cfg, processor, run_dir, adapter_dir, stats, "merged-from-adapter")
+        prov = json.loads((adapter_dir / "provenance.json").read_text())
+        assert prov["base_uid"] == base_uid, f"adapter {cfg.run_id} was trained on {prov['base_uid']}, not {cfg.vla_path} ({base_uid})"
+        stats = json.loads((adapter_dir / "dataset_statistics.json").read_text())
+        _merge_and_save(cfg, processor, run_dir, adapter_dir, stats, prov)
         return
     vla = AutoModelForVision2Seq.from_pretrained(
         cfg.vla_path, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True, trust_remote_code=True
@@ -137,7 +142,8 @@ def finetune(cfg: FinetuneConfig) -> None:
 
     # --- change 1: our Dataset, frozen stats, epoch loop -------------------------------------
     codec = Codec()
-    vla_dataset = ParquetTransitions(cfg.data_parquet, processor.tokenizer, processor.image_processor.apply_transform, codec)
+    vla_dataset = ParquetTransitions(cfg.data_parquet, processor.tokenizer, processor.image_processor.apply_transform, codec,
+                                     image_fn=stock_augment if cfg.image_aug else None)
     (run_dir / "dataset_statistics.json").write_text(json.dumps(vla_dataset.dataset_statistics, indent=2))
     collator = PaddedCollatorForActionPrediction(
         processor.tokenizer.model_max_length, processor.tokenizer.pad_token_id, padding_side="right"
@@ -215,10 +221,12 @@ def finetune(cfg: FinetuneConfig) -> None:
     # LoRA weights only (embeddings are not targets; without them the adapter is a few hundred MB and fits on Drive)
     vla.save_pretrained(adapter_dir, save_embedding_layers=False)
     (adapter_dir / "dataset_statistics.json").write_text(json.dumps(vla_dataset.dataset_statistics, indent=2))
-    _merge_and_save(cfg, processor, run_dir, adapter_dir, vla_dataset.dataset_statistics, f"{gradient_step_idx}\nrows={len(vla_dataset)}")
+    prov = dict(run_uid=uuid.uuid4().hex[:12], base_uid=base_uid, updates=gradient_step_idx, rows=len(vla_dataset), seed=cfg.seed)
+    (adapter_dir / "provenance.json").write_text(json.dumps(prov, indent=2))
+    _merge_and_save(cfg, processor, run_dir, adapter_dir, vla_dataset.dataset_statistics, prov)
 
 
-def _merge_and_save(cfg, processor, run_dir: Path, adapter_dir: Path, stats: dict, updates: str) -> None:
+def _merge_and_save(cfg, processor, run_dir: Path, adapter_dir: Path, stats: dict, prov: dict) -> None:
     """base(vla_path) + adapter -> merged checkpoint in run_dir with exactly one norm_stats key, the *_prismatic.py
     files beside it, and a DONE marker. Deterministic, so a lost merged checkpoint is rebuilt bit-identically."""
     processor.save_pretrained(run_dir)
@@ -233,8 +241,9 @@ def _merge_and_save(cfg, processor, run_dir: Path, adapter_dir: Path, stats: dic
     root = next(p for p in map(Path, os.sys.path) if (Path(p or ".") / "prismatic").exists())
     for f in ("configuration_prismatic.py", "modeling_prismatic.py", "processing_prismatic.py"):
         shutil.copy(root / src / f, run_dir / f)
-    (run_dir / "DONE").write_text(f"updates={updates}\nkey={UNNORM_KEY}\n")
-    print(f"done: {updates.splitlines()[0]} updates")
+    # run_uid identifies the trained weights (a re-merge of the same adapter is bit-identical, so it keeps the uid)
+    (run_dir / "DONE").write_text("".join(f"{k}={v}\n" for k, v in prov.items()) + f"key={UNNORM_KEY}\n")
+    print(f"done: {prov['updates']} updates (run_uid {prov['run_uid']})")
 
 
 if __name__ == "__main__":

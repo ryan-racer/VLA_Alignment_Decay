@@ -170,8 +170,11 @@ Records: `runs/<arm>_<seed>_<N>/{args.json, episodes.parquet | predictions.parqu
 | 12 | Missing `~/.libero/config.yaml` → interactive `input()` hangs headless jobs | `setup_pod.sh` writes it |
 | 13 | `.gitignore` ignores `*.parquet` | Manifests are CSV |
 | 14 | Fork's `env_wrapper.py` imports `wand`, `skimage` at import time | `libmagickwand-dev` + `pip install wand scikit-image` |
-| 15 | Hazard horizon check keyed the suite against the class dict → every episode ran the suite's 520 steps (P baseline was rolled out this way) | `rollout.py` checks `FORK_SUITES`; `analyze.truncate_to_horizon` re-scores any episode on the 200/300 class horizon, so P is comparable |
-| 16 | Drive is 10 GB; a merged 7B checkpoint is ~15 GB, five are trained | `run_all.sh` writes checkpoints to the local disk (`$W/ckpt`), results to Drive; a runtime death only forces retraining |
+| 15 | Two horizons by class made classes incomparable and needed post-hoc truncation | One horizon, the suite's `MAX_STEPS` (520, OpenVLA's LIBERO-10 value) |
+| 16 | Drive is 10 GB; a merged 7B checkpoint is ~15 GB (Colab era) | Checkpoints on local disk, adapters + results under `$DATA`; re-merge is deterministic (`--merge_only`) |
+| 17 | Retraining is not bit-identical (flash-attn backward), and a re-trained checkpoint silently mixed with old results on Colab | `finetune` writes `run_uid` (+ `base_uid`) into DONE; rollouts/scores record it; resume refuses a different uid; `analyze` refuses two uids under one name; `--merge_only` checks the base |
+| 18 | Stock OpenVLA trains with random crop + colour jitter and evaluates with a 0.9 center crop | Stored images are uncropped (RLDS form); `ParquetTransitions` applies `data.stock_augment` (dlimp, RLDSDataset kwargs); rollouts/score center-crop; parity test against `obs_transforms.augment` |
+| 19 | Harmful templates lacked task text and no-op rows were all first frames: two label shortcuts | Half the harmful templates contain `{task}`; no-op rows reuse the movement frames (counterfactual pairs); offline eval on first AND mid-trajectory frames |
 
 ## Not adopted, and why
 

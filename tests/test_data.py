@@ -103,11 +103,48 @@ def test_mix_extra_move_rows_are_disjoint():
                         dict(template_id="b2", **{"class": "benign"}, split="train", text="{task} carefully")])
     states = [f"t0/{i}" for i in range(4)]
     eps = pd.DataFrame([dict(state_id=s, template_id="scripted", cls="benign", contact=False, success=True) for s in states])
-    steps = pd.DataFrame([dict(state_id=s, template_id="scripted", t=t, image=b"x", instruction="pick it",
-                               action_model=[0.0] * 7, refused_k1=False, cost_x=0.0) for s in states for t in range(10)])
+    steps = pd.DataFrame([dict(state_id=s, template_id="scripted", t=t, image=b"x", instruction="pick it", task="pick it",
+                               gripper_state=1.0, action_model=[0.1] * 7, refused_k1=False, cost_x=0.0)
+                          for s in states for t in range(10)])
     rng = np.random.default_rng(0)
     move = move_rows(steps, eps, ins, set(states), 12, 3, rng)
     assert (move["template_id"] != "scripted").all() and (move["src_template_id"] == "scripted").all()
     used = set(zip(move["state_id"], move["src_template_id"], move["t"].astype(int)))
     extra = move_rows(steps, eps, ins, set(states), 12, 3, np.random.default_rng(1), exclude=used)
     assert len(extra) and not (set(zip(extra["state_id"], extra["src_template_id"], extra["t"].astype(int))) & used)
+
+
+def test_noop_rows_pair_every_movement_frame():
+    """Counterfactual pairs: each movement frame reappears with a harmful template and the no-op label; first
+    frames are always among the movement frames."""
+    from ftr.build_data import move_rows, noop_rows
+
+    ins = pd.read_csv("manifests/instructions.csv", keep_default_na=False)
+    states = [f"t0/{i}" for i in range(4)]
+    eps = pd.DataFrame([dict(state_id=s, template_id="scripted", cls="benign", contact=False, success=True) for s in states])
+    steps = pd.DataFrame([dict(state_id=s, template_id="scripted", t=t, image=f"{s}-{t}".encode(), instruction="put the bowl away",
+                               task="put the bowl away", gripper_state=0.0 if t > 5 else 1.0, action_model=[0.2] * 6 + [1.0],
+                               refused_k1=False, cost_x=0.0) for s in states for t in range(12)])
+    move = move_rows(steps, eps, ins, set(states), 20, 5, np.random.default_rng(0))
+    assert (move.groupby("state_id")["t"].min() == 0).all()  # the initial frame of every episode
+    noop = noop_rows(move, ins, np.random.default_rng(0))
+    assert list(noop["image"]) == list(move["image"])  # same frames, opposite label
+    assert set(noop["template_id"]) <= {"h1", "h2", "h3", "h4"} and (noop["category"] == "noop").all()
+    assert all(a[:6] == [0] * 6 and a[6] == g for a, g in zip(noop["action"], noop["gripper_state"]))
+    with_task = noop[noop["template_id"].isin(["h3", "h4"])]
+    assert len(with_task) and with_task["instruction"].str.contains("put the bowl away").all()
+    assert not noop["instruction"].str.contains("{task}", regex=False).any()
+
+
+def test_mid_frames_only_stored_images_before_the_violation(tmp_path):
+    """--store-every 10 leaves image=None on 9 of 10 steps; mid frames must come from stored frames with
+    t >= min_t that precede the episode's first violation."""
+    from ftr.build_data import mid_frames
+
+    rows = [dict(state_id="fshoa/0/3/0", template_id="b5", task_idx=3, task="x", t=t, gripper_state=1.0,
+                 image=(b"png%d" % t) if t % 10 == 0 else None) for t in range(60)]
+    pd.DataFrame(rows).to_parquet(tmp_path / "steps_t3_s0_b5.parquet")
+    pd.DataFrame([dict(state_id="fshoa/0/3/0", template_id="b5", violation_step=45)]).to_parquet(tmp_path / "episodes.parquet")
+    for seed in range(20):
+        m = mid_frames(str(tmp_path), 1, 20, np.random.default_rng(seed))
+        assert len(m) == 1 and m["image"].notna().all() and m.iloc[0]["t"] in (20, 30, 40)
