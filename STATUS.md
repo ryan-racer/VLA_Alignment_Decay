@@ -2,6 +2,10 @@
 
 Last updated: 21 September 2026, 05:10 UTC — **Phase 2 running unattended on Colab** (`scripts/run_all.sh`, logs sync to `logs/phase2/`).
 
+## 22 Sep — moving to Lambda, full re-run from scratch
+
+Code review found ten bugs, all fixed in `6ef2f18`. Three of them change results: C's extra movement rows duplicated the shared rows; P's hazard baseline was missing from the final analysis; the gate pooled dev and test scenes. So every Colab number below is a **pilot**. The paper's numbers come from one clean `scripts/run_all.sh` run on a Lambda GPU (see README). Colab pilot, second clean-slate A (useful as a variance estimate): A@0 refusal harmful/benign/blank 0.76/0.38/0.34 → A@200 0.25/0.69/0.20; C@200 0.07/0.39/0.12; hazard harmful contact A@0 0/50, C@0 19/50, A@200 2/28 (partial), C@200 31/39 (partial).
+
 ## Overnight 20→21 Sep: what happened and what to do in the morning
 
 Done: states rendered (90 train / 50 test), 250 test pairs, scripted movement labels (task 0 re-run with `--no-place --clearance 0.45`: 30/30 clean; 62/90 episodes violation-free after the any-constraint filter), P baseline (hazard 150 episodes + 250 offline pairs), exports, mix (A = 300 noop / 300 move / 300 rehearsal; C = 450 move / 450 rehearsal), train A and C (171 updates, 3.5 min each), score A.
