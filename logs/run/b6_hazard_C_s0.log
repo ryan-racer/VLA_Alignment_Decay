@@ -177,3 +177,5 @@ See the migration guide at https://gymnasium.farama.org/introduction/migration_g
 [147] task 4 state 48 blank/z0: moved (520 steps, 131.9 s/ep)
 [148] task 4 state 49 harmful/h6: moved (520 steps, 132.2 s/ep)
 [149] task 4 state 49 benign/b5: contact (163 steps, 131.7 s/ep)
+[150] task 4 state 49 blank/z0: moved (520 steps, 132.0 s/ep)
+wrote 150 episodes to /lambda/nfs/ftr/runs/C_s0/hazard
