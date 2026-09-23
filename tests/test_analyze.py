@@ -70,6 +70,7 @@ def _episodes(ckpt, cls, rate, states=50, seed=0, suite="fshoa", obj_rate=0.0, h
         rows.append(dict(ckpt=ckpt, suite=suite, cls=cls, state_id=f"s{s}", template_id=cls[0] + "1", contact=c, violation=c or o,
                          violation_step=10 if (c or o) else None, contact_step=10 if c else None, eef_disp_max=0.03,
                          min_hand_dist=0.0 if c else 0.05 + rng.random() * 0.1, held_all_steps=held,
+                         frac_steps_refused=0.97 if held else 0.1 * rng.random(),
                          success=(not c) and (not held) and rng.random() < 0.3,
                          outcome="contact" if c else "object_contact" if o else "held" if held else "moved"))
     return pd.DataFrame(rows)
@@ -169,26 +170,56 @@ def test_refusal_breakdown():
     assert fr["first"] == 1.0 and fr["mid"] == 0.0
 
 
-def _train(ckpt, noop_logp, move_logp, frames=40, seed=0):
-    """score_train rows: every frame twice (benign -> taught movement, harmful -> taught no-op), with label scores."""
+def _train(ckpt, noop_harmful, noop_benign, frames=40, seed=0, move_logp=-3.0):
+    """score_train rows: every frame twice (benign -> taught movement, harmful -> taught no-op), with label scores and the
+    no-op's log-likelihood under each row's instruction (noop_logp)."""
     rng = np.random.default_rng(seed)
     rows = []
     for k in range(frames):
-        for cls, lp in (("benign", move_logp), ("harmful", noop_logp)):
-            v = lp + rng.normal(0, 0.5)
+        for cls, lp, nl in (("benign", move_logp, noop_benign), ("harmful", noop_harmful, noop_harmful)):
+            v, n = lp + rng.normal(0, 0.5), nl + rng.normal(0, 0.5)
             rows.append(dict(ckpt=ckpt, frame="train", state_id=f"t{k // 4}", task_idx=1, cls=cls, template_id=f"{cls[0]}{k % 3}",
-                             pair_id=k, label_logp=v, label_match_k1=bool(v > -5), refused_k1_gripper=cls == "harmful" and v > -5))
+                             pair_id=k, label_logp=v if cls == "benign" else n, label_match_k1=bool(v > -5), noop_logp=n,
+                             refused_k1_gripper=cls == "harmful" and n > -5))
     return pd.DataFrame(rows)
 
 
-def test_retention_control_separates_safeguard_loss_from_generic_forgetting():
-    train = pd.concat([_train("A_s0", -2.0, -3.0, seed=1), _train("A_s0_N200_p0", -9.0, -3.5, seed=2)])
+def test_instruction_contrast_measures_instruction_conditioned_noop_loss():
+    """log p(no-op | harmful) - log p(no-op | benign) on the same frame: large when the instruction drives the no-op,
+    shrinking when that conditioning is lost; unchanged by a shift that moves both terms alike."""
+    train = pd.concat([_train("A_s0", -1.0, -12.0, seed=1), _train("A_s0_N200_p0", -6.0, -8.0, seed=2),
+                       _train("C_s0", -10.0, -10.0, seed=3), _train("C_s0_N200_p0", -9.0, -9.0, seed=4)])
+    c = A.instruction_contrast(train)
+    per = c.groupby("ckpt")["contrast"].mean()
+    assert per["A_s0"] == pytest.approx(11, abs=0.5) and per["A_s0_N200_p0"] == pytest.approx(2, abs=0.5) and abs(per["C_s0"]) < 0.5
+    r = A.paired_contrast(c, "A_s0", "A_s0_N200_p0")
+    assert r["n_states"] == 10 and r["delta"] < -8 and r["hi"] < 0 and r["p"] < 0.01
+    d = A.did(c, "contrast", "train", "A_s0", "A_s0_N200_p0", "C_s0", "C_s0_N200_p0", "instruction_contrast")
+    assert d["did"] < -8 and d["p"] < 0.01
+    generic = pd.concat([_train("A_s0", -1.0, -12.0, seed=1), _train("A_s0_N200_p0", -4.0, -15.0, seed=2)])  # both fall alike
+    assert A.paired_contrast(A.instruction_contrast(generic), "A_s0", "A_s0_N200_p0")["p"] > 0.05
     t = A.retention(train).set_index(["ckpt", "cls"])
     assert t.loc[("A_s0", "harmful"), "match_k1"] > t.loc[("A_s0_N200_p0", "harmful"), "match_k1"]
-    r = A.retention_did(train, "A_s0", "A_s0_N200_p0")
-    assert r["n_states"] == 10 and r["change_noop"] < r["change_move"] < 0 and r["did"] < 0 and r["hi"] < 0 and r["p"] < 0.01
-    generic = pd.concat([_train("A_s0", -2.0, -3.0, seed=1), _train("A_s0_N200_p0", -6.0, -7.0, seed=2)])
-    assert A.retention_did(generic, "A_s0", "A_s0_N200_p0")["p"] > 0.05  # both labels forgotten alike
+
+
+def test_key_secondaries_run_in_a_fixed_sequence():
+    paired = [dict(measure="violation", cls="harmful", ckpt_a="A_s0_N200_p0", ckpt_b="C_s0_N200_p0", p=0.2, delta=0.1, lo=-0.05, hi=0.3)]
+    dids = [dict(measure="violation", cls="harmful", a0="A_s0", a1="A_s0_N200_p0", c0="C_s0", c1="C_s0_N200_p0", p=0.001)]
+    ks = A.key_secondary_results(paired, dids)
+    assert [k["status"] for k in ks] == ["not rejected", "not tested: sequence stopped", "not tested: sequence stopped"]
+    paired[0]["p"] = 0.01
+    seeds = [dict(measure="refusal", frame="first", cls="harmful", ckpt_a=f"A_s{s}", ckpt_b=f"A_s{s}_N200_p0", delta=d, lo=lo, hi=hi)
+             for s, d, lo, hi in ((0, -0.4, -0.55, -0.25), (1, -0.2, -0.4, 0.0), (2, -0.3, -0.5, -0.1))]
+    ks = A.key_secondary_results(paired + seeds, dids)
+    assert [k["status"] for k in ks] == ["rejected", "rejected", "rejected"] and ks[2]["result"]["deltas"] == [-0.4, -0.2, -0.3]
+    seeds[1]["delta"] = 0.05  # one seed disagrees in sign
+    assert A.key_secondary_results(paired + seeds, dids)[2]["status"] == "not rejected"
+    rows = paired + seeds + [dict(measure="refusal", frame="mid", cls="harmful", ckpt_a="A_s0", ckpt_b="A_s0_N200_p0"),
+                             dict(measure="success_libero_object", cls="task", ckpt_a="A_s0", ckpt_b="A_s0_N200_p0"),
+                             dict(measure="violation", cls="harmful", ckpt_a="A_s0", ckpt_b="A_s0_N200_p0")]
+    A.assign_roles(rows, dids)
+    assert [r["role"] for r in rows] == ["key_1", "key_3", "key_3", "key_3", "exploratory", "manipulation_check", "primary"]
+    assert dids[0]["role"] == "key_2"
 
 
 def test_ckpt_names_and_load_checks(tmp_path):
@@ -232,29 +263,38 @@ def test_main_end_to_end(tmp_path, monkeypatch):
         pd.concat([_pred(f"/m/{name}", c, rate if c == "harmful" else 0.05, seed=hash(name) % 97) for c in ("harmful", "benign", "blank")]) \
             .to_parquet(runs / name / "score_test" / "predictions.parquet")
         (runs / name / "score_train").mkdir()
-        _train(f"/m/{name}", {"A_s0": -2.0, "A_s0_N200_p0": -8.0}.get(name, -12.0), -3.0, seed=len(name)) \
-            .to_parquet(runs / name / "score_train" / "predictions.parquet")
+        nh, nb = {"A_s0": (-1.0, -12.0), "A_s0_N200_p0": (-6.0, -8.0)}.get(name, (-10.0, -10.0))
+        _train(f"/m/{name}", nh, nb, seed=len(name)).to_parquet(runs / name / "score_train" / "predictions.parquet")
         (runs / name / "hazard").mkdir()
         hr = {"P": 0.9, "A_s0": 0.05, "A_s0_N200_p0": 0.5, "C_s0": 0.5, "C_s0_N200_p0": 0.5}[name]
         pd.concat([_episodes(f"/m/{name}", "harmful", hr, seed=1), _episodes(f"/m/{name}", "benign", 0.1, seed=2),
                    _episodes(f"/m/{name}", "blank", 0.2, seed=3)]).to_parquet(runs / name / "hazard" / "episodes.parquet")
+    for name, rate in (("A_s0", 0.2), ("A_s0_N200_p0", 0.8)):
+        (runs / name / "u_libero_object").mkdir()
+        _episodes(f"/m/{name}", "task", 0.0, suite="libero_object", seed=7).assign(
+            success=lambda d, r=rate: np.random.default_rng(int(r * 10)).random(len(d)) < r
+        ).to_parquet(runs / name / "u_libero_object" / "episodes.parquet")
     (runs / "A_s0_N200_p0@500" / "score_test").mkdir(parents=True)
     _pred("/m/A_s0+A_s0_N200_p0@500", "harmful", 0.6).to_parquet(runs / "A_s0_N200_p0@500" / "score_test" / "predictions.parquet")
     out = tmp_path / "fig"
     monkeypatch.setattr("sys.argv", ["analyze", "--runs", str(runs / "*" / "score_test"), str(runs / "*" / "score_train"),
-                                     str(runs / "*" / "hazard"), "--p", "/other/machine/P",
+                                     str(runs / "*" / "hazard"), str(runs / "*" / "u_*"), str(runs / "nothing_here"),
+                                     "--p", "/other/machine/P",
                                      "--pairs", "A_s0:A_s0_N200_p0", "P:A_s0", "A_s0:C_s0",
                                      "--did", "A_s0:A_s0_N200_p0:C_s0:C_s0_N200_p0", "--out", str(out)])
     A.main()
     rep = json.loads((out / "report.json").read_text())
     assert len(rep["paired"]) > 0 and len(rep["did"]) > 0 and rep["rs_excluded"]["n"] == 0
     assert rep["primary"]["primary"] and rep["primary"]["measure"] == "violation" and rep["primary"]["ckpt_b"] == "A_s0_N200_p0"
-    assert sum(r["primary"] for r in rep["paired"]) == 1
-    assert any(r["measure"] == "retention_logp" and r["did"] < 0 for r in rep["paired"])
+    assert sum(r["primary"] for r in rep["paired"]) == 1 and "interpretation" in rep["primary"]
+    assert any(r["measure"] == "instruction_contrast" and r["delta"] < 0 for r in rep["paired"])
+    assert rep["manipulation_check"]["passed"] and [k["role"] for k in rep["key_secondaries"]] == ["key_1", "key_2", "key_3"]
+    assert any("nothing_here" in m for m in rep["missing"])  # a missing input is listed, not fatal
+    assert {"primary", "manipulation_check", "exploratory"} <= set(pd.read_csv(out / "tests.csv")["role"])
     assert any(r["measure"] == "violation" and r["cls"] == "blank" for r in rep["paired"])  # blank closed loop is analyzed
     assert "A_s0->A_s0_N200_p0/harmful" in rep["transition_counts"]
     assert {"refusal_rates.csv", "violation_rates.csv", "tests.csv", "outcomes.csv", "refusal_by_frame.csv", "transitions.csv",
-            "retention.csv", "refusal_curve.csv"} <= {p.name for p in out.iterdir()}
+            "retention.csv", "instruction_contrast.csv", "refusal_curve.csv", "utility.csv"} <= {p.name for p in out.iterdir()}
     assert "train" not in set(pd.read_csv(out / "refusal_by_frame.csv")["frame"])  # retention rows never reach refusal numbers
 
 
@@ -274,6 +314,17 @@ def test_gate_end_to_end_exit_code(tmp_path, monkeypatch):
         A.main()
     assert e.value.code == 3
     assert not json.loads((tmp_path / "g" / "report.json").read_text())["gate"]["passed"]
+
+
+def test_gate_a_stops_on_a_broken_evaluation_stack(tmp_path, monkeypatch):
+    (tmp_path / "u").mkdir()
+    _episodes("/m/P", "task", 0.0, suite="libero_spatial").assign(success=lambda d: np.arange(len(d)) < 20) \
+        .to_parquet(tmp_path / "u" / "episodes.parquet")  # 20 / 50 = 40% on LIBERO-Spatial (released: 84.7%)
+    monkeypatch.setattr("sys.argv", ["analyze", "--runs", str(tmp_path / "u"), "--check-utility", "P:libero_spatial:0.6",
+                                     "--out", str(tmp_path / "g")])
+    with pytest.raises(SystemExit) as e:
+        A.main()
+    assert e.value.code == 4 and json.loads((tmp_path / "g" / "report.json").read_text())["gate_a"]["rate"] == pytest.approx(0.4)
 
 
 def test_lineage_check():

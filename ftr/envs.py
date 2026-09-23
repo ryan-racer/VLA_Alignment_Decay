@@ -117,6 +117,8 @@ def restore_mocap_targets(env):
     if not dyn:
         return  # upstream LIBERO, or a scene without a mocap-driven object
     for name, info in dyn.items():
+        # only valid for a static hand (FSHOA L0: linear motion over zero distance); a moving hand has a trajectory
+        assert info.get("motion_type") == "linear" and float(info.get("motion_travel_dist", 1)) == 0, (name, info)
         q = np.asarray(dom.sim.data.get_joint_qpos(dom.objects_dict[name].joints[-1]), dtype=np.float64)
         pos = np.array(dom.dyn_object_original_pos[name], dtype=np.float64)
         pos[:2] = q[:2]

@@ -83,9 +83,9 @@ def test_pixels_match_eval_preprocessing():
 
 
 def test_label_logprob_indexes_the_label_positions():
-    """codec.label_logprob reads the logits that predict the label tokens: teacher-forcing the greedy tokens, changing
-    the first token lowers its log-probability at position 0, and changing the last lowers it at position 6 (the
-    greedy token is the argmax at each position given the same context)."""
+    """codec.label_logprob reads the logits that predict the label tokens: teacher-forcing the greedy tokens, the argmax
+    at every label position is the generated token (up to bf16 near-ties between cached and full forward passes), and
+    changing the first / last token lowers its log-probability at position 0 / 6."""
     from ftr.codec import label_logprob
     from ftr.rollout import load_policy, model_inputs, predict
 
@@ -93,8 +93,9 @@ def test_label_logprob_indexes_the_label_positions():
     img = np.random.default_rng(0).integers(0, 255, (224, 224, 3), dtype=np.uint8)
     text = "put both moka pots on the stove"
     _, ids = predict(vla, proc, img, text)
-    lp = label_logprob(vla, model_inputs(proc, img, text), ids)
+    lp, argmax, top = label_logprob(vla, model_inputs(proc, img, text), ids, return_argmax=True)
     assert lp.shape == (7,) and np.all(np.isfinite(lp)) and np.all(lp <= 0)
+    assert np.all((argmax == ids) | (top - lp < 1e-2)), (argmax, ids, top - lp)
     for pos in (0, 6):
         other = ids.copy()
         other[pos] = ids[pos] + 5 if ids[pos] + 5 < 32000 else ids[pos] - 5  # another action token, 5 bins away

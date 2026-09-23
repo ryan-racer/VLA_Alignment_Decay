@@ -50,7 +50,7 @@ PLAN.md days 3–9: P baseline on test states, self-rollouts, data build, A/C tr
 
 Parametrized by `W` (local: venv + clones), `DATA` (persistent: HF cache, runs, data, logs) and `CUDA` (`cu118` default → prebuilt flash-attn wheel, no compile; `cu121` compiles). Defaults: `W=DATA=$HOME/ftr`. On Lambda, point `DATA` at a persistent filesystem (`/lambda/nfs/<fs>/ftr`) if results must outlive the instance.
 
-RunPod secure A100 80 GB ($1.59/h) + 200 GB network volume mounted at `/workspace`. No Docker build: start from RunPod's `pytorch 2.2.0 / py3.10 / cuda 12.1.1 devel` image (verify the exact tag on day 0) and run an idempotent `scripts/setup_pod.sh`:
+*Historical (erratum): the block below is the original RunPod plan; `scripts/setup_pod.sh` is authoritative.* RunPod secure A100 80 GB ($1.59/h) + 200 GB network volume mounted at `/workspace`. No Docker build: start from RunPod's `pytorch 2.2.0 / py3.10 / cuda 12.1.1 devel` image (verify the exact tag on day 0) and run an idempotent `scripts/setup_pod.sh`:
 
 ```
 # all on /workspace so a pod swap costs nothing
@@ -178,6 +178,10 @@ Records: `runs/<arm>_<seed>_<N>/{args.json, episodes.parquet | predictions.parqu
 | 20 | The fork's reset samples the hand's mocap target and `step()` re-applies it; `set_init_state` restores qpos only → every init state of a task gets the seed-0 hand pose (the init states spread it 2–9 cm) | `envs.restore_mocap_targets` after `set_init_state`; `test_hand_pose_follows_the_init_state` |
 | 21 | The pilots looked at test states 0–24 before design choices were made (test-set reuse) | Confirmatory set = states 25–49; 0–24 only for Gate B's offline screen; nothing touches 25–49 until the gate passes |
 | 22 | A skipped stage reuses results measured on earlier weights of the same name | Gate done-file names the run_uids; `analyze --expect-uid` refuses results from other weights; rollout resume also checks horizon and templates |
+| 23 | `git add -A logs figures figures_gate` exits 128 while any path is missing: the log sync pushed nothing until the final report | `git add -A .`; `GIT_TERMINAL_PROMPT=0` so a bad token fails instead of prompting |
+| 24 | One failed stage (a missing utility run, one seed's score) made the final analysis exit, so the primary was never reported | Missing inputs are listed in `report.json`, not fatal; every pair is requested; reports rebuild on every launch |
+| 25 | An end token among the first 7 generated tokens crashed the stage, and greedy decoding crashes the resume at the same step | `generate(..., min_new_tokens=7)` |
+| 26 | A hung simulator call blocks the pipeline forever | Per-episode `SIGALRM` watchdog (default action kills even inside C code); `run_all` resumes the rollout once |
 
 ## Not adopted, and why
 
@@ -194,4 +198,4 @@ Records: `runs/<arm>_<seed>_<N>/{args.json, episodes.parquet | predictions.parqu
 
 ## Cost
 
-Training ≈ 5 jobs ≈ 3 GPU-h. Rollouts ≈ 750 episodes at ~0.28 s/step ≈ 12–15 GPU-h. **≈ $40 compute, ≈ $55 with storage.** Two or three eval or score processes fit on one 80 GB card (each ~15 GB) — the only free throughput lever. Measure s/step in the first 100 updates and s/episode on day 3.
+*Superseded (erratum, PLAN.md Amendment 1): the whole run is ≈ 43–53 GPU-h, ≈ $90–105 on a Lambda A100; see PLAN.md's budget.* Original estimate: Training ≈ 5 jobs ≈ 3 GPU-h. Rollouts ≈ 750 episodes at ~0.28 s/step ≈ 12–15 GPU-h. ≈ $40 compute, ≈ $55 with storage. Two or three eval or score processes fit on one 80 GB card (each ~15 GB) — the only free throughput lever. Measure s/step in the first 100 updates and s/episode on day 3.

@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import subprocess
 import time
 from pathlib import Path
@@ -243,6 +244,9 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--resume", action="store_true", help="skip (state, template) pairs already in episodes.parquet")
+    ap.add_argument("--episode-timeout", type=int, default=1800,
+                    help="s; a longer episode kills the process (SIGALRM's default action works even inside a hung "
+                         "simulator call); run_all resumes it once. A 520-step episode takes ~5 min")
     args = ap.parse_args()
 
     from experiments.robot.robot_utils import set_seed_everywhere
@@ -299,10 +303,12 @@ def main():
                     if (f"{args.suite}/{args.level}/{task_idx}/{si}", r["template_id"]) in done_keys:
                         continue
                     frames = [] if n_videos < args.video else None
+                    signal.alarm(args.episode_timeout)  # watchdog: no handler, so the default action ends the process
                     ep, steps = run_episode(env, states[si], vla, processor, codec, r["text"], H,
                                             not args.no_terminate_on_contact, store_images=store,
                                             task_mode=args.task_instruction, video_frames=frames, timer=timer,
                                             scripted=dict(clearance=args.clearance, place_dz=args.place_dz, place=not args.no_place) if args.scripted else False)
+                    signal.alarm(0)
                     if timer is not None:
                         timer.report(env)
                         timer = None

@@ -1,6 +1,38 @@
 # Status
 
-Last updated: 22 September 2026 — **pre-launch review fixes on branch `review-fixes`; the Lambda run has not started.** The Colab runs of 20–21 Sep are pilots (below).
+Last updated: 22 September 2026 — **ready to launch on Lambda from tag `prereg-v1.1`; the run has not started.** The Colab runs of 20–21 Sep are pilots (below).
+
+## 22 Sep (review 4) — pre-registration amendment `prereg-v1.1`, before any confirmatory data
+
+A second external review; every factual claim was checked and held. Two of its findings would have cost the run its main output:
+- **Log sync pushed nothing** until `figures/` existed: `git add` exits 128 on a missing path, so a gate stop would have been invisible from GitHub.
+- **One failed stage killed the final report.** A missing utility run made `analyze` exit (the utility path had never run anywhere), and the primary was only requested when all four seed-0 offline scores existed.
+
+**Fixed:**
+- log sync (`git add -A .`, no password prompt)
+- missing inputs are listed in `report.json`, not fatal; every pair is requested; reports rebuild on every launch
+- `min_new_tokens=7` (an early end token would have crashed a stage for good)
+- per-episode watchdog with one automatic resume
+- disk check
+- `FTR_IGNORE_GATE` saved across resumes
+- static-hand assertion in `restore_mocap_targets`
+- argmax check in the parity test
+- the final adapter is saved as the decay curve's last point
+
+**Reordered:** P's utility and an automated, blocking **Gate A** (P ≥ 60% on LIBERO-Spatial) come first. Seed 0's confirmatory measures and an interim report (`figures_s0`) follow right after Gate B: the primary lands at ≈ hour 21 instead of ≈ 46.
+
+**Amendment 1** (PLAN.md, top):
+- null rule for the primary (read through its Newcombe upper bound)
+- three key secondaries as their own family in a fixed sequence (A@200 vs C@200, the difference in differences, offline Ru decay with a 3-seed rule)
+- a Unew manipulation check; everything else exploratory, with a `role` column in `tests.csv`
+- the retention control replaced by the same-frame instruction contrast
+- Gate B's specificity check on the fraction of steps refused
+
+**Also:**
+- **Erratum** for stale text frozen in `prereg-v1`.
+- **Paper:** VLGuard wording, C personalized only at N=200, Ru's gripper condition, the timeout sentence, which numbers come from states 26–50, Fig. 1's utility arms, the minimal-pair wording, the bin convention and the distance's reference point. Added four verified references (INFUSE, BadVLA, Qi et al. 2025 ×2).
+
+**Checks:** 57 Mac tests pass; 33 GPU tests collected (unrun). Stubbed dry runs: full pass with failed-then-resumed rollouts, resume (only the reports re-run), Gate A failure (exit 4, nothing trained), Gate B failure → retry → full pipeline, saved gate override. Budget ≈ 43–53 GPU-h, ≈ $90–105.
 
 ## 22 Sep (review 3) — pre-launch fixes, verified on the Mac, GPU paths unrun
 

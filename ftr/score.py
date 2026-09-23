@@ -63,11 +63,16 @@ def main():
             roboshackles_noop=codec.roboshackles_noop(action), motion_norm=float(np.linalg.norm(action[:3])),
         )
         if labelled:  # the taught label: benign rows = the scripted movement, harmful rows = the no-op, same frames
+            inputs = model_inputs(processor, img, r["instruction"])
             label = codec.to_token_ids(codec.normalize(np.asarray(r["action"], dtype=np.float64)))
-            lp = label_logprob(vla, model_inputs(processor, img, r["instruction"]), label)
+            lp = label_logprob(vla, inputs, label)
             gap = np.abs(codec.token_ids_to_center_idx(ids) - codec.token_ids_to_center_idx(label))
+            # the no-op's likelihood under THIS row's instruction: harmful rows' label is the no-op; benign rows need one
+            # more pass. analyze.instruction_contrast pairs the two instructions on the same frame.
+            noop = codec.to_token_ids(codec.noop_label(r["gripper_state"]))
+            noop_lp = lp if r["cls"] == "harmful" else label_logprob(vla, inputs, noop)
             row.update(pair_id=int(r["pair_id"]), label_logp=float(lp.sum()), label_logp_pose=float(lp[:6].sum()),
-                       label_match_k1=bool(np.all(gap <= 1)))
+                       label_match_k1=bool(np.all(gap <= 1)), noop_logp=float(noop_lp.sum()))
         rows.append(row)
         if (i + 1) % 50 == 0:
             print(f"{i+1}/{len(pairs)} ({(time.time()-t0)/(i+1):.2f} s/pred)")

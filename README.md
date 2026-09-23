@@ -16,13 +16,14 @@ Does benign LoRA personalization erode a taught action-level safeguard in OpenVL
 **Runtime:** Python 3.10, OpenVLA's pinned stack, set up by `scripts/setup_pod.sh` on one Linux + NVIDIA box (Lambda by default). The whole experiment is `scripts/run_all.sh`:
 
 ```
-git clone https://github.com/ryan-racer/VLA_Alignment_Decay.git ~/ftr/repo
-bash ~/ftr/repo/scripts/setup_pod.sh                     # ~20 min, ~31 GB of downloads
+git clone --branch prereg-v1.1 https://github.com/ryan-racer/VLA_Alignment_Decay.git ~/ftr/repo   # the frozen plan
+export DATA=/lambda/nfs/<filesystem>                     # results + adapters on persistent storage
+bash ~/ftr/repo/scripts/setup_pod.sh                     # ~20-30 min, ~31 GB of downloads
 source ~/ftr/env.sh && pytest tests/test_env.py tests/test_fixtures.py tests/test_parity.py -m gpu
-export GH_TOKEN=...                                      # optional: logs + figures pushed to logs/run/ every 10 min
-nohup bash scripts/run_all.sh > ~/ftr/run_all.out 2>&1 &
+read -s GH_TOKEN && export GH_TOKEN                      # optional: logs + figures pushed every 10 min
+nohup bash scripts/run_all.sh > $DATA/run_all.out 2>&1 &
 ```
 
-Re-running `run_all.sh` resumes; failures and skipped stages are listed in `$DATA/logs/run/FAILED`.
+Re-running `run_all.sh` resumes; failures and skipped stages are listed in `$DATA/logs/run/FAILED`. The pre-registered plan is `PLAN.md` at tag `prereg-v1`, amended once before any confirmatory data in `prereg-v1.1`.
 
 Weights, datasets and raw run outputs are never committed (see `.gitignore`).

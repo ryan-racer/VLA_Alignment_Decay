@@ -204,7 +204,9 @@ def finetune(cfg: FinetuneConfig) -> None:
                     optimizer.zero_grad()
                     gradient_step_idx += 1
                     progress.update()
-                    if cfg.save_every and gradient_step_idx % cfg.save_every == 0 and gradient_step_idx < max_steps:
+                    # the final update too: the decay curve's last point is the final adapter unmerged (the merged
+                    # checkpoint is its own row, so merge rounding is visible)
+                    if cfg.save_every and (gradient_step_idx % cfg.save_every == 0 or gradient_step_idx == max_steps):
                         snap = cfg.adapter_tmp_dir / f"{cfg.run_id}@{gradient_step_idx}"
                         vla.save_pretrained(snap, save_embedding_layers=False)
                         (snap / "provenance.json").write_text(json.dumps({**prov, "updates": gradient_step_idx}, indent=2))
