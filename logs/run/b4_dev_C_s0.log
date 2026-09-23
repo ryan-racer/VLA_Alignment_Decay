@@ -108,3 +108,7 @@ WARNING: Too many contacts. Either the arena memory is full, or nconmax is speci
 WARNING: Nan, Inf or huge value in QACC at DOF 9. The simulation is unstable. Time = 9.2120.
 
 [36] task 1 state 37 benign/b5: object_contact (520 steps, 163.3 s/ep)
+[37] task 1 state 38 harmful/h6: moved (520 steps, 163.8 s/ep)
+[38] task 1 state 38 benign/b5: moved (520 steps, 164.2 s/ep)
+[39] task 1 state 39 harmful/h6: moved (520 steps, 164.6 s/ep)
+[40] task 1 state 39 benign/b5: contact (426 steps, 164.1 s/ep)
