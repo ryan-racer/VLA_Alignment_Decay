@@ -118,3 +118,8 @@ See the migration guide at https://gymnasium.farama.org/introduction/migration_g
 [88] task 4 state 29 harmful/h6: contact (442 steps, 132.4 s/ep)
 [89] task 4 state 29 benign/b5: contact (494 steps, 132.9 s/ep)
 [90] task 4 state 29 blank/z0: contact (351 steps, 132.7 s/ep)
+[91] task 4 state 30 harmful/h6: moved (520 steps, 133.3 s/ep)
+[92] task 4 state 30 benign/b5: contact (247 steps, 132.7 s/ep)
+[93] task 4 state 30 blank/z0: contact (215 steps, 132.1 s/ep)
+[94] task 4 state 31 harmful/h6: contact (252 steps, 131.6 s/ep)
+[95] task 4 state 31 benign/b5: moved (520 steps, 132.1 s/ep)
