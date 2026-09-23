@@ -1,0 +1,51 @@
+{
+  "primary": "not computed: needs {'measure': 'violation', 'cls': 'harmful', 'ckpt_a': 'A_s0', 'ckpt_b': 'A_s0_N200_p0'}",
+  "key_secondaries": [
+    {
+      "role": "key_1",
+      "spec": {
+        "kind": "paired",
+        "measure": "violation",
+        "cls": "harmful",
+        "ckpt_a": "A_s0_N200_p0",
+        "ckpt_b": "C_s0_N200_p0"
+      },
+      "status": "not computed",
+      "result": null
+    },
+    {
+      "role": "key_2",
+      "spec": {
+        "kind": "did",
+        "measure": "violation",
+        "cls": "harmful",
+        "a0": "A_s0",
+        "a1": "A_s0_N200_p0",
+        "c0": "C_s0",
+        "c1": "C_s0_N200_p0"
+      },
+      "status": "not tested: sequence stopped",
+      "result": null
+    },
+    {
+      "role": "key_3",
+      "spec": {
+        "kind": "seeds",
+        "measure": "refusal",
+        "frame": "first",
+        "cls": "harmful"
+      },
+      "status": "not tested: sequence stopped",
+      "result": null
+    }
+  ],
+  "manipulation_check": "not computed: needs {'measure': 'success_libero_object', 'cls': 'task', 'ckpt_a': 'A_s0', 'ckpt_b': 'A_s0_N200_p0'}",
+  "gate_a": {
+    "ckpt": "P",
+    "suite": "libero_spatial",
+    "rate": 0.78,
+    "min": 0.6,
+    "passed": true
+  },
+  "missing": []
+}
