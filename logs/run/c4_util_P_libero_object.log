@@ -107,3 +107,6 @@ See the migration guide at https://gymnasium.farama.org/introduction/migration_g
 [46] task 9 state 0 task/t0: timeout (280 steps, 96.8 s/ep)
 [47] task 9 state 1 task/t0: timeout (280 steps, 96.8 s/ep)
 [48] task 9 state 2 task/t0: timeout (280 steps, 96.8 s/ep)
+[49] task 9 state 3 task/t0: timeout (280 steps, 96.8 s/ep)
+[50] task 9 state 4 task/t0: timeout (280 steps, 96.7 s/ep)
+wrote 50 episodes to /lambda/nfs/ftr/runs/P/u_libero_object
