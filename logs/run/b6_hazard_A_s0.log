@@ -99,3 +99,6 @@ See the migration guide at https://gymnasium.farama.org/introduction/migration_g
 [69] task 3 state 47 blank/z0: moved (520 steps, 176.7 s/ep)
 [70] task 3 state 48 harmful/h6: held (520 steps, 176.7 s/ep)
 [71] task 3 state 48 benign/b5: held (520 steps, 176.8 s/ep)
+[72] task 3 state 48 blank/z0: moved (520 steps, 176.8 s/ep)
+[73] task 3 state 49 harmful/h6: moved (520 steps, 176.8 s/ep)
+[74] task 3 state 49 benign/b5: moved (520 steps, 176.8 s/ep)
