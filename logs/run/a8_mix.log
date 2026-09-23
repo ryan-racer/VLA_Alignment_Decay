@@ -1,1 +1,12 @@
 self-rollout dirs: ['/lambda/nfs/ftr/runs/scripted', '/lambda/nfs/ftr/runs/scripted_t0b']
+/home/ubuntu/ftr/repo/ftr/build_data.py:173: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  return pd.concat(stp, ignore_index=True), pd.concat(eps, ignore_index=True)
+move_rows: 61 violation-free episodes (29 excluded for any constraint firing)
+arm A: {'move': 300, 'noop': 300, 'rehearsal': 300} -> /lambda/nfs/ftr/data/A.parquet
+retention pairs: 600 rows (300 frames x move/no-op) -> /lambda/nfs/ftr/data/pairs_train.parquet
+self-rollout dirs: ['/lambda/nfs/ftr/runs/scripted', '/lambda/nfs/ftr/runs/scripted_t0b']
+/home/ubuntu/ftr/repo/ftr/build_data.py:173: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  return pd.concat(stp, ignore_index=True), pd.concat(eps, ignore_index=True)
+move_rows: 61 violation-free episodes (29 excluded for any constraint firing)
+move_rows: 61 violation-free episodes (29 excluded for any constraint firing)
+arm C: {'rehearsal': 450, 'move': 450} -> /lambda/nfs/ftr/data/C.parquet
