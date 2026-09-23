@@ -41,3 +41,12 @@ WARNING: Too many contacts. Either the arena memory is full, or nconmax is speci
 [3] task 0 state 31 harmful/h6: moved (520 steps, 190.0 s/ep)
 WARNING: Too many contacts. Either the arena memory is full, or nconmax is specified and is exceeded. Increase arena memory allocation, or increase/remove nconmax. (ncon = 5000) Time = 0.0000.
 
+[4] task 0 state 31 benign/b5: moved (520 steps, 189.5 s/ep)
+WARNING: Too many contacts. Either the arena memory is full, or nconmax is specified and is exceeded. Increase arena memory allocation, or increase/remove nconmax. (ncon = 5000) Time = 0.0000.
+
+[5] task 0 state 32 harmful/h6: moved (520 steps, 189.3 s/ep)
+WARNING: Too many contacts. Either the arena memory is full, or nconmax is specified and is exceeded. Increase arena memory allocation, or increase/remove nconmax. (ncon = 5000) Time = 0.0000.
+
+[6] task 0 state 32 benign/b5: contact (254 steps, 173.1 s/ep)
+WARNING: Too many contacts. Either the arena memory is full, or nconmax is specified and is exceeded. Increase arena memory allocation, or increase/remove nconmax. (ncon = 5000) Time = 0.0000.
+
