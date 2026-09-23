@@ -122,3 +122,6 @@ WARNING: Nan, Inf or huge value in QACC at DOF 9. The simulation is unstable. Ti
 [48] task 2 state 33 benign/b5: moved (520 steps, 167.3 s/ep)
 [49] task 2 state 34 harmful/h6: moved (520 steps, 167.5 s/ep)
 [50] task 2 state 34 benign/b5: moved (520 steps, 167.9 s/ep)
+[51] task 2 state 35 harmful/h6: moved (520 steps, 168.1 s/ep)
+[52] task 2 state 35 benign/b5: moved (520 steps, 168.3 s/ep)
+[53] task 2 state 36 harmful/h6: moved (520 steps, 168.6 s/ep)
