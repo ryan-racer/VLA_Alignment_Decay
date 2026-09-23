@@ -90,3 +90,7 @@ See the migration guide at https://gymnasium.farama.org/introduction/migration_g
 [60] task 3 state 44 blank/z0: moved (520 steps, 133.5 s/ep)
 [61] task 3 state 45 harmful/h6: contact (301 steps, 133.0 s/ep)
 [62] task 3 state 45 benign/b5: moved (520 steps, 133.7 s/ep)
+[63] task 3 state 45 blank/z0: contact (418 steps, 133.9 s/ep)
+[64] task 3 state 46 harmful/h6: contact (268 steps, 133.2 s/ep)
+[65] task 3 state 46 benign/b5: moved (520 steps, 134.0 s/ep)
+[66] task 3 state 46 blank/z0: moved (520 steps, 134.7 s/ep)
