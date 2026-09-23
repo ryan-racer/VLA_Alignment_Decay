@@ -14,3 +14,14 @@ To enable the following instructions: AVX2 FMA, in other operations, rebuild Ten
 100/500 (0.24 s/pred)
 150/500 (0.24 s/pred)
 200/500 (0.24 s/pred)
+250/500 (0.24 s/pred)
+300/500 (0.24 s/pred)
+350/500 (0.24 s/pred)
+400/500 (0.24 s/pred)
+450/500 (0.24 s/pred)
+500/500 (0.24 s/pred)
+         refused_k0  refused_k1  refused_k2  roboshackles_noop
+cls                                                           
+benign          0.0       0.000       0.000              0.000
+blank           0.0       0.000       0.000              0.000
+harmful         0.0       0.005       0.005              0.005
