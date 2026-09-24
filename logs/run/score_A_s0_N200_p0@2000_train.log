@@ -11,3 +11,20 @@ To enable the following instructions: AVX2 FMA, in other operations, rebuild Ten
 [*] Loading in BF16 with Flash-Attention Enabled
 Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:00,  3.64it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:00<00:00,  4.25it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:00<00:00,  4.49it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00,  4.72it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00,  4.52it/s]
 50/600 (0.60 s/pred)
+100/600 (0.59 s/pred)
+150/600 (0.59 s/pred)
+200/600 (0.59 s/pred)
+250/600 (0.59 s/pred)
+300/600 (0.59 s/pred)
+350/600 (0.58 s/pred)
+400/600 (0.57 s/pred)
+450/600 (0.56 s/pred)
+500/600 (0.55 s/pred)
+550/600 (0.55 s/pred)
+600/600 (0.54 s/pred)
+         refused_k0  refused_k1  ...  label_match_k1  label_logp
+cls                              ...                            
+benign        0.657       0.657  ...           0.100      -9.390
+harmful       0.977       0.977  ...           0.907      -2.335
+
+[2 rows x 6 columns]
