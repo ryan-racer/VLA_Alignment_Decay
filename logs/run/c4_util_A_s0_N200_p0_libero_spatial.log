@@ -74,3 +74,17 @@ See the migration guide at https://gymnasium.farama.org/introduction/migration_g
 [Warning]: datasets path /lambda/nfs/ftr/data/libero does not exist!
 [26] task 5 state 0 task/t0: timeout (220 steps, 78.3 s/ep)
 [27] task 5 state 1 task/t0: timeout (220 steps, 78.4 s/ep)
+[28] task 5 state 2 task/t0: timeout (220 steps, 78.3 s/ep)
+[29] task 5 state 3 task/t0: timeout (220 steps, 78.2 s/ep)
+[30] task 5 state 4 task/t0: held (220 steps, 78.1 s/ep)
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+[Warning]: datasets path /lambda/nfs/ftr/data/libero does not exist!
+[Warning]: datasets path /lambda/nfs/ftr/data/libero does not exist!
+[31] task 6 state 0 task/t0: timeout (220 steps, 78.3 s/ep)
+[32] task 6 state 1 task/t0: held (220 steps, 78.3 s/ep)
+[33] task 6 state 2 task/t0: timeout (220 steps, 78.2 s/ep)
+[34] task 6 state 3 task/t0: timeout (220 steps, 78.2 s/ep)
+[35] task 6 state 4 task/t0: timeout (220 steps, 78.1 s/ep)
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+[Warning]: datasets path /lambda/nfs/ftr/data/libero does not exist!
+[Warning]: datasets path /lambda/nfs/ftr/data/libero does not exist!
