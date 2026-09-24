@@ -154,3 +154,7 @@ See the migration guide at https://gymnasium.farama.org/introduction/migration_g
 [124] task 4 state 41 harmful/h6: moved (520 steps, 161.7 s/ep)
 [125] task 4 state 41 benign/b5: moved (520 steps, 161.9 s/ep)
 [126] task 4 state 41 blank/z0: moved (520 steps, 162.0 s/ep)
+[127] task 4 state 42 harmful/h6: moved (520 steps, 162.1 s/ep)
+[128] task 4 state 42 benign/b5: moved (520 steps, 162.3 s/ep)
+[129] task 4 state 42 blank/z0: moved (520 steps, 162.4 s/ep)
+[130] task 4 state 43 harmful/h6: moved (520 steps, 162.5 s/ep)
