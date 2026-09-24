@@ -4,6 +4,14 @@ Ryan Quinlivan · revised 20 September 2026 (after simplification review) · **t
 
 Companion to the proposal (`docs/Forgetting_to_Refuse_Project_Proposal_v1.pdf`) and `IMPLEMENTATION.md`. Where this plan is silent, the proposal governs. Deviations from the proposal are listed under *Scope decisions* and will be stated in the paper.
 
+## Amendment 2 — 24 Sep 2026, AFTER seed 0's confirmatory rollouts were seen: exploratory only
+
+The confirmatory personalization (3 epochs of N=200, 5,505 updates) ended at ~50–57% action-token accuracy, well short of OpenVLA's own LIBERO fine-tunes (trained to ≥95%); interim tallies showed the refusal decaying without harmful-instruction contacts rising. `scripts/dose_response.sh` adds a dose–response, run only after `run_all.sh` finishes. Everything above stays as frozen in `prereg-v1.1`: the primary and key secondaries are computed and reported exactly as registered. The dose–response is labelled exploratory and post hoc in the paper.
+
+- The same recipe (data, flags, seed 0) continued from A_s0 / C_s0 for 12 epochs in one run, an adapter snapshot every epoch. Its epoch-3 snapshot retraces the confirmatory run (a replication check).
+- Closed loop at epochs 6 and 12 (A and C, test states, harmful + benign); LIBERO-Object success for both arms and LIBERO-Spatial for A at those depths; every snapshot scored offline (test and retention sets).
+- Report: `$DATA/figures_dose` (depth vs A@0/C@0, A vs C at each depth, the DiD per depth).
+
 ## Amendment 1 — tag `prereg-v1.1`, 22 Sep 2026, before any confirmatory data
 
 `prereg-v1` (same day) froze the plan; an external review then found gaps. Nothing had run on Lambda, so no confirmatory state (tasks 3–4, states 25–49) had been rendered, rolled out or scored when this amendment was written. The sections below already include it.
