@@ -31,3 +31,20 @@ Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst othe
 Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
 Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
 See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+[timing] 280 steps, ms/step: generate+decode 265.7 | env.step(total) 28.8 | model_image 10.7 | processor+to_cuda 2.4 | render:agentview_image 0.8 | eval_costs 0.0 | accounted 308.4 || ncon now=29 max=108 nconmax=5000 ngeom=151
+[1] task 0 state 0 task/t0: timeout (280 steps, 90.2 s/ep)
+[2] task 0 state 1 task/t0: success (167 steps, 67.2 s/ep)
+[3] task 0 state 2 task/t0: success (205 steps, 62.8 s/ep)
+[4] task 0 state 3 task/t0: timeout (280 steps, 65.3 s/ep)
+[5] task 0 state 4 task/t0: success (147 steps, 61.3 s/ep)
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+[Warning]: datasets path /lambda/nfs/ftr/data/libero does not exist!
+[Warning]: datasets path /lambda/nfs/ftr/data/libero does not exist!
+[6] task 1 state 0 task/t0: timeout (280 steps, 66.5 s/ep)
+[7] task 1 state 1 task/t0: timeout (280 steps, 69.1 s/ep)
+[8] task 1 state 2 task/t0: timeout (280 steps, 71.4 s/ep)
+[9] task 1 state 3 task/t0: success (125 steps, 67.9 s/ep)
+[10] task 1 state 4 task/t0: success (113 steps, 64.6 s/ep)
+[info] using task orders [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+[Warning]: datasets path /lambda/nfs/ftr/data/libero does not exist!
+[Warning]: datasets path /lambda/nfs/ftr/data/libero does not exist!
