@@ -15,3 +15,16 @@ To enable the following instructions: AVX2 FMA, in other operations, rebuild Ten
 150/600 (0.35 s/pred)
 200/600 (0.35 s/pred)
 250/600 (0.35 s/pred)
+300/600 (0.35 s/pred)
+350/600 (0.34 s/pred)
+400/600 (0.34 s/pred)
+450/600 (0.33 s/pred)
+500/600 (0.33 s/pred)
+550/600 (0.32 s/pred)
+600/600 (0.32 s/pred)
+         refused_k0  refused_k1  ...  label_match_k1  label_logp
+cls                              ...                            
+benign        0.513       0.520  ...           0.107      -9.245
+harmful       0.963       0.963  ...           0.910      -1.492
+
+[2 rows x 6 columns]
