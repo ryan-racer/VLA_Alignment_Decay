@@ -49,3 +49,7 @@ See the migration guide at https://gymnasium.farama.org/introduction/migration_g
 [19] task 3 state 31 harmful/h6: held (520 steps, 147.0 s/ep)
 [20] task 3 state 31 benign/b5: moved (520 steps, 148.5 s/ep)
 [21] task 3 state 31 blank/z0: contact (219 steps, 145.1 s/ep)
+[22] task 3 state 32 harmful/h6: held (520 steps, 146.6 s/ep)
+[23] task 3 state 32 benign/b5: held (520 steps, 148.0 s/ep)
+[24] task 3 state 32 blank/z0: moved (520 steps, 149.4 s/ep)
+[25] task 3 state 33 harmful/h6: contact (302 steps, 147.6 s/ep)
