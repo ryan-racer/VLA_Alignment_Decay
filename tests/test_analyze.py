@@ -334,3 +334,73 @@ def test_lineage_check():
     stale = child.assign(ckpt_base_uid="zzz")  # trained from a different A_s0 than the one measured
     with pytest.raises(SystemExit, match="trained from"):
         A.check_lineage(pd.concat([parent, stale]), pd.DataFrame(), "A_s0", "A_s0_N200_p0")
+
+
+# --- study 2 (PREREG_STUDY2.md) ------------------------------------------------------------------
+
+
+@pytest.fixture
+def study2():
+    A.use_prereg("study2")
+    yield
+    A.use_prereg("study1")  # module globals: never leak into the study 1 tests
+
+
+def test_study1_is_the_default_registration():
+    assert A.PRIMARY == A.PREREGS["study1"]["primary"] and A.PRIMARY["cls"] == "harmful"
+
+
+def test_study2_roles_and_seed_replication(study2):
+    k1 = dict(measure="violation", cls="benign", ckpt_a="A_s0_N200_p0", ckpt_b="C_s0_N200_p0", p=0.01, delta=0.2)
+    dids = [dict(measure="violation", cls="benign", a0="A_s0", a1="A_s0_N200_p0", c0="C_s0", c1="C_s0_N200_p0", p=0.02)]
+    seeds = [dict(measure="violation", cls="benign", ckpt_a=f"A_s{s}", ckpt_b=f"A_s{s}_N200_p0", delta=d, p=p)
+             for s, d, p in ((1, 0.2, 0.01), (2, 0.15, 0.03))]
+    ks = A.key_secondary_results([k1] + seeds, dids)
+    assert [k["status"] for k in ks] == ["rejected", "rejected", "rejected"]
+    seeds[1]["p"] = 0.2  # one seed not significant
+    assert A.key_secondary_results([k1] + seeds, dids)[2]["status"] == "not rejected"
+    rows = [k1] + seeds + [dict(measure="violation", cls="benign", ckpt_a="A_s0", ckpt_b="A_s0_N200_p0"),
+                           dict(measure="violation", cls="harmful", ckpt_a="A_s0", ckpt_b="A_s0_N200_p0"),
+                           dict(measure="success_object_hazard", cls="benign", ckpt_a="A_s0", ckpt_b="A_s0_N200_p0")]
+    A.assign_roles(rows, dids)
+    assert [r["role"] for r in rows] == ["key_1", "key_3", "key_3", "primary", "exploratory", "manipulation_check"]
+
+
+def test_study2_gates():
+    hz = pd.concat([_episodes("C_s0_N200_p0", "benign", 0.5, seed=1), _episodes("A_s0", "benign", 0.05, seed=2)])
+    g = A.gate_study2(hz, "C_s0_N200_p0", "A_s0")
+    assert g["passed"] and g["next"] == "confirmatory"
+    g = A.gate_study2(pd.concat([_episodes("C_s0_N200_p0", "benign", 0.0, seed=1), _episodes("A_s0", "benign", 0.05, seed=2)]),
+                      "C_s0_N200_p0", "A_s0")
+    assert not g["passed"] and g["next"].startswith("G1 failed")
+    g = A.gate_study2(pd.concat([_episodes("C_s0_N200_p0", "benign", 0.5, seed=1), _episodes("A_s0", "benign", 0.9, seed=2)]),
+                      "C_s0_N200_p0", "A_s0")
+    assert not g["passed"] and g["next"].startswith("G2 failed")
+
+
+def test_main_study2_end_to_end(tmp_path, monkeypatch):
+    runs = tmp_path / "runs"
+    rates = {"A_s0": 0.05, "A_s0_N200_p0": 0.45, "C_s0": 0.5, "C_s0_N200_p0": 0.4,
+             "A_s1": 0.05, "A_s1_N200_p0": 0.4, "A_s2": 0.05, "A_s2_N200_p0": 0.45}
+    for i, (name, r) in enumerate(rates.items()):
+        (runs / name / "oh_test").mkdir(parents=True)
+        ep = pd.concat([_episodes(f"/m/{name}", "benign", r, states=150, seed=i, suite="object_hazard"),
+                        _episodes(f"/m/{name}", "harmful", 0.0, states=150, seed=50 + i, suite="object_hazard")])
+        if name.endswith("_N200_p0"):  # personalized: succeeds at the task more often
+            ep["success"] = np.random.default_rng(i).random(len(ep)) < 0.6
+        ep.to_parquet(runs / name / "oh_test" / "episodes.parquet")
+    out = tmp_path / "fig"
+    monkeypatch.setattr("sys.argv", ["analyze", "--prereg", "study2", "--runs", str(runs / "*" / "oh_test"),
+                                     "--pairs", "A_s0:A_s0_N200_p0", "A_s0_N200_p0:C_s0_N200_p0",
+                                     "A_s1:A_s1_N200_p0", "A_s2:A_s2_N200_p0",
+                                     "--did", "A_s0:A_s0_N200_p0:C_s0:C_s0_N200_p0", "--out", str(out)])
+    try:
+        A.main()
+    finally:
+        A.use_prereg("study1")
+    rep = json.loads((out / "report.json").read_text())
+    assert rep["primary"]["cls"] == "benign" and rep["primary"]["p"] < 0.05 and rep["primary"]["delta"] > 0
+    assert [k["status"] for k in rep["key_secondaries"]][0] in ("rejected", "not rejected")
+    assert rep["key_secondaries"][2]["spec"]["kind"] == "seeds_paired"
+    assert rep["manipulation_check"]["result"]["measure"] == "success_object_hazard"
+    assert sum(r["role"] == "primary" for r in rep["paired"]) == 1
