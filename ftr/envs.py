@@ -20,10 +20,36 @@ DUMMY_ACTION = [0, 0, 0, 0, 0, 0, -1]  # stock OpenVLA warmup: no motion, grippe
 HOLD_ACTION = [0, 0, 0, 0, 0, 0, -1]
 SETTLE_STEPS = 10
 MAX_STEPS = {"libero_spatial": 220, "libero_object": 280, "libero_goal": 300, "libero_10": 520, "libero_90": 400,
-             "obstacle_avoidance_human": 520}  # FSHOA L0: four LIBERO-10 layouts + one LIBERO-90 scene; 520 as LIBERO-10
+             "obstacle_avoidance_human": 520,  # FSHOA L0: four LIBERO-10 layouts + one LIBERO-90 scene; 520 as LIBERO-10
+             "object_hazard": 520}  # study 2: same horizon as the FSHOA hazard episodes
 # One horizon for every instruction class: OpenVLA's LIBERO-10 value (FSHOA L0 = four LIBERO-10 layouts + one
 # LIBERO-90 scene). LIBERO-Safety itself ships no evaluation loop and defines no horizon for these suites.
 FORK_SUITES = ("obstacle_avoidance_human", "human_safety", "obstacle_avoidance", "affordance", "reasoning_safety")
+# Study 2 scenes live in this repo (scripts/make_object_hazard.py), not in a LIBERO checkout; they need the fork on
+# PYTHONPATH (hand assets, dynamics, constraints). Init states: scenes/object_hazard/init_states/<bddl stem>.npy.
+LOCAL_SUITES = {"object_hazard": Path(__file__).resolve().parent.parent / "scenes" / "object_hazard"}
+
+
+class LocalSuite:
+    """A repo-local suite: tasks.csv (task_idx, bddl, hand, language) + per-task init-state arrays."""
+
+    def __init__(self, name: str):
+        import csv
+
+        self.name, self.root = name, LOCAL_SUITES[name]
+        with open(self.root / "tasks.csv") as f:
+            self.tasks = sorted(csv.DictReader(f), key=lambda r: int(r["task_idx"]))
+        assert [int(r["task_idx"]) for r in self.tasks] == list(range(len(self.tasks))), self.root
+        self.n_tasks = len(self.tasks)
+
+    def get_num_tasks_by_level(self, level: int = 0) -> int:
+        return self.n_tasks
+
+    def task(self, task_idx: int):
+        r = self.tasks[task_idx]
+        bddl = self.root / r["bddl"]
+        states = np.load(self.root / "init_states" / (Path(r["bddl"]).stem + ".npy"))
+        return str(bddl), states, r["language"]
 
 
 def is_safety_fork() -> bool:
@@ -34,7 +60,9 @@ def is_safety_fork() -> bool:
 
 
 def suite(name: str):
-    """Instantiate a benchmark suite by name (e.g. 'libero_spatial', 'obstacle_avoidance_human')."""
+    """Instantiate a benchmark suite by name (e.g. 'libero_spatial', 'obstacle_avoidance_human', 'object_hazard')."""
+    if name in LOCAL_SUITES:
+        return LocalSuite(name)
     from libero.libero import benchmark
 
     return benchmark.get_benchmark(name)()
@@ -42,12 +70,18 @@ def suite(name: str):
 
 def n_tasks(s, level: int = 0) -> int:
     """Number of tasks in a suite (at `level` on the fork)."""
+    if isinstance(s, LocalSuite):
+        return s.n_tasks
     return s.get_num_tasks_by_level(level) if is_safety_fork() else s.n_tasks
 
 
 def task_bddl_and_states(suite_name: str, task_idx: int, level: int = 0):
-    """(bddl_path, init_states[N, D] float64, task_language). Fork: (level, i) API for every suite; upstream: (i)."""
+    """(bddl_path, init_states[N, D] float64, task_language). Fork: (level, i) API for every suite; upstream: (i).
+    Local suites (study 2) ignore `level` and require the fork on PYTHONPATH at env time."""
     s = suite(suite_name)
+    if isinstance(s, LocalSuite):
+        bddl, states, language = s.task(task_idx)
+        return bddl, np.asarray(states, dtype=np.float64), language
     if is_safety_fork():
         task = s.get_task_by_level_id(level, task_idx)
         bddl = s.get_task_bddl_file_path(level, task_idx)
