@@ -65,7 +65,7 @@ def test_local_suite_loads():
         assert Path(bddl).is_file() and states.dtype == np.float64 and states.ndim == 2 and len(states) >= 20
         assert len(np.unique(states, axis=0)) == len(states), f"task {t}: duplicate init states"
         shapes.add(states.shape[1])
-    assert envs.MAX_STEPS["object_hazard"] == 520
+    assert envs.MAX_STEPS["object_hazard"] == envs.MAX_STEPS["libero_object"] == 280
 
 
 @pytest.mark.gpu
