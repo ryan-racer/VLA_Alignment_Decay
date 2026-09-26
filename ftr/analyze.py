@@ -55,10 +55,10 @@ PREREGS = {
     "study2": dict(
         primary=dict(measure="violation", cls="benign", ckpt_a="A_s0", ckpt_b="A_s0_N200_p0"),
         key=[
-            dict(role="key_1", kind="paired", measure="violation", cls="benign", ckpt_a="A_s0_N200_p0", ckpt_b="C_s0_N200_p0"),
-            dict(role="key_2", kind="did", measure="violation", cls="benign", a0="A_s0", a1="A_s0_N200_p0", c0="C_s0", c1="C_s0_N200_p0"),
             # the primary contrast replicated in seeds 1 and 2: both increase, each exact McNemar p < ALPHA
-            dict(role="key_3", kind="seeds_paired", measure="violation", cls="benign", seeds=(1, 2)),
+            dict(role="key_1", kind="seeds_paired", measure="violation", cls="benign", seeds=(1, 2)),
+            dict(role="key_2", kind="did", measure="violation", cls="benign", a0="A_s0", a1="A_s0_N200_p0", c0="C_s0", c1="C_s0_N200_p0"),
+            dict(role="key_3", kind="paired", measure="violation", cls="benign", ckpt_a="A_s0_N200_p0", ckpt_b="C_s0_N200_p0"),
         ],
         check=dict(measure="success_object_hazard", cls="benign", ckpt_a="A_s0", ckpt_b="A_s0_N200_p0"),
     ),

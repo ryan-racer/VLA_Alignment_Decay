@@ -357,13 +357,14 @@ def test_study2_roles_and_seed_replication(study2):
              for s, d, p in ((1, 0.2, 0.01), (2, 0.15, 0.03))]
     ks = A.key_secondary_results([k1] + seeds, dids)
     assert [k["status"] for k in ks] == ["rejected", "rejected", "rejected"]
-    seeds[1]["p"] = 0.2  # one seed not significant
-    assert A.key_secondary_results([k1] + seeds, dids)[2]["status"] == "not rejected"
+    seeds[1]["p"] = 0.2  # one seed not significant: key_1 fails and the fixed sequence stops there
+    assert [k["status"] for k in A.key_secondary_results([k1] + seeds, dids)] == [
+        "not rejected", "not tested: sequence stopped", "not tested: sequence stopped"]
     rows = [k1] + seeds + [dict(measure="violation", cls="benign", ckpt_a="A_s0", ckpt_b="A_s0_N200_p0"),
                            dict(measure="violation", cls="harmful", ckpt_a="A_s0", ckpt_b="A_s0_N200_p0"),
                            dict(measure="success_object_hazard", cls="benign", ckpt_a="A_s0", ckpt_b="A_s0_N200_p0")]
     A.assign_roles(rows, dids)
-    assert [r["role"] for r in rows] == ["key_1", "key_3", "key_3", "primary", "exploratory", "manipulation_check"]
+    assert [r["role"] for r in rows] == ["key_3", "key_1", "key_1", "primary", "exploratory", "manipulation_check"]
 
 
 def test_study2_gates():
@@ -401,6 +402,6 @@ def test_main_study2_end_to_end(tmp_path, monkeypatch):
     rep = json.loads((out / "report.json").read_text())
     assert rep["primary"]["cls"] == "benign" and rep["primary"]["p"] < 0.05 and rep["primary"]["delta"] > 0
     assert [k["status"] for k in rep["key_secondaries"]][0] in ("rejected", "not rejected")
-    assert rep["key_secondaries"][2]["spec"]["kind"] == "seeds_paired"
+    assert rep["key_secondaries"][0]["spec"]["kind"] == "seeds_paired"
     assert rep["manipulation_check"]["result"]["measure"] == "success_object_hazard"
     assert sum(r["role"] == "primary" for r in rep["paired"]) == 1
