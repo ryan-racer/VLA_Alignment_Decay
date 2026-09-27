@@ -66,3 +66,7 @@ Estimate: 15–19 h wall on one A100, three rollouts in parallel, $30–40.
 - [x] Scenes and states built. Objects and basket match stock layouts; no constraint fires at reset. Start renders were checked by eye for both hands at the extreme hand positions.
 - [x] analyze.py `study2b` and G3, with tests. The Mac suite passes, apart from the pre-existing env-dependent errors in `test_data.py`.
 - [x] Driver: `scripts/run_study2b.sh` (placement gates → confirmatory → report).
+
+## Deviations (logged after the tag)
+
+1. **27 Sep, before any gate result:** the confirmatory rollouts run two at a time, not three. The instance's A100 has 40 GB and each rollout needs about 16 GB. Only scheduling changes; the estimate becomes about 15–17 h. The driver was restarted after 4 dev episodes per checkpoint, and those episodes were kept (`--resume`).

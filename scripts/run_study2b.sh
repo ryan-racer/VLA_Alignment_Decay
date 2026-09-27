@@ -71,8 +71,8 @@ fi
 if [ -z "$SEL" ]; then fail "study 2b gate failed: no placement passed; stopping"; echo "== STUDY 2B STAGES ATTEMPTED $(date)"; exit 3; fi
 echo "== selected placement: $SEL"
 
-# ---- 2. confirmatory (test states, b1), three rollouts at a time -------------------------------------
-for WAVE in "A_s0 A_s0_N200_p0 C_s0" "C_s0_N200_p0 A_s1 A_s1_N200_p0" "A_s2 A_s2_N200_p0"; do
+# ---- 2. confirmatory (test states, b1), two rollouts at a time (~16 GB each on a 40 GB A100) ---------
+for WAVE in "A_s0 A_s0_N200_p0" "C_s0 C_s0_N200_p0" "A_s1 A_s1_N200_p0" "A_s2 A_s2_N200_p0"; do
     for CK in $WAVE; do bg roll $CK $SEL test; done
     waitbg
 done
