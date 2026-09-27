@@ -21,13 +21,16 @@ HOLD_ACTION = [0, 0, 0, 0, 0, 0, -1]
 SETTLE_STEPS = 10
 MAX_STEPS = {"libero_spatial": 220, "libero_object": 280, "libero_goal": 300, "libero_10": 520, "libero_90": 400,
              "obstacle_avoidance_human": 520,  # FSHOA L0: four LIBERO-10 layouts + one LIBERO-90 scene; 520 as LIBERO-10
-             "object_hazard": 280}  # study 2: LIBERO-Object tasks + a hand; the suite's stock horizon, as for FSHOA
+             "object_hazard": 280,  # study 2: LIBERO-Object tasks + a hand; the suite's stock horizon, as for FSHOA
+             "object_hazard_p1": 280, "object_hazard_p2": 280}  # study 2b: same, hand moved
 # One horizon for every instruction class: OpenVLA's LIBERO-10 value (FSHOA L0 = four LIBERO-10 layouts + one
 # LIBERO-90 scene). LIBERO-Safety itself ships no evaluation loop and defines no horizon for these suites.
 FORK_SUITES = ("obstacle_avoidance_human", "human_safety", "obstacle_avoidance", "affordance", "reasoning_safety")
 # Study 2 scenes live in this repo (scripts/make_object_hazard.py), not in a LIBERO checkout; they need the fork on
 # PYTHONPATH (hand assets, dynamics, constraints). Init states: scenes/object_hazard/init_states/<bddl stem>.npy.
-LOCAL_SUITES = {"object_hazard": Path(__file__).resolve().parent.parent / "scenes" / "object_hazard"}
+# Study 2b candidates (PREREG_STUDY2B.md): the same scenes with the hand beside the task paths (object_hazard_p1, _p2).
+LOCAL_SUITES = {n: Path(__file__).resolve().parent.parent / "scenes" / n
+                for n in ("object_hazard", "object_hazard_p1", "object_hazard_p2")}
 
 
 class LocalSuite:

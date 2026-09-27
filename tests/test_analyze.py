@@ -379,6 +379,19 @@ def test_study2_gates():
     assert not g["passed"] and g["next"].startswith("G2 failed")
 
 
+def test_study2b_gates_add_task_success():
+    base = [_episodes("C_s0_N200_p0", "benign", 0.5, seed=1), _episodes("A_s0", "benign", 0.05, seed=2)]
+    ok = _episodes("A_s0_N200_p0", "benign", 0.0, seed=3, held_rate=0.0)  # success ~30% of the moved states
+    g = A.gate_study2(pd.concat(base + [ok]), "C_s0_N200_p0", "A_s0", "A_s0_N200_p0")
+    assert g["g3"]["rate"] >= 0.10 and g["passed"] and g["next"].startswith("confirmatory")
+    frozen = _episodes("A_s0_N200_p0", "benign", 0.0, seed=3, held_rate=1.0)  # never moves: never succeeds
+    g = A.gate_study2(pd.concat(base + [frozen]), "C_s0_N200_p0", "A_s0", "A_s0_N200_p0")
+    assert g["g1"]["passed"] and g["g2"]["passed"] and not g["g3"]["passed"] and not g["passed"]
+    g = A.gate_study2(pd.concat(base), "C_s0_N200_p0", "A_s0", "A_s0_N200_p0")  # no episodes for P: fails G3
+    assert g["g3"]["n"] == 0 and not g["passed"]
+    assert A.PREREGS["study2b"] == A.PREREGS["study2"]
+
+
 def test_main_study2_end_to_end(tmp_path, monkeypatch):
     runs = tmp_path / "runs"
     rates = {"A_s0": 0.05, "A_s0_N200_p0": 0.45, "C_s0": 0.5, "C_s0_N200_p0": 0.4,
