@@ -1,4 +1,4 @@
-"""Figure 1: closed-loop episode outcomes per arm, instruction and study (figs/outcomes_by_arm.csv, derived from the
+"""Figure 1: closed-loop episode outcomes (near-still / moving / hand contact) per arm, instruction and study (figs/outcomes_by_arm.csv, derived from the
 episodes.parquet files of the study 1 hazard runs and the study 2 test runs). python paper/make_fig_outcomes.py"""
 from pathlib import Path
 
@@ -10,7 +10,7 @@ import pandas as pd
 
 F = Path(__file__).parent / "figs"
 ARMS = [("A_s0", "$A@0$"), ("A_s0_N200_p0", "$A@200$"), ("C_s0", "$C@0$"), ("C_s0_N200_p0", "$C@200$")]
-SEG = [("held", "held still", "#9fb7cc"), ("moved", "moved, no violation", "#e3e3e3"), ("violation", "violation", "#c0392b")]
+SEG = [("nearstill", "near-still (no-op on most steps)", "#9fb7cc"), ("moving", "moving", "#e3e3e3"), ("violation", "hand contact", "#c0392b")]
 
 df = pd.read_csv(F / "outcomes_by_arm.csv")
 fig, axes = plt.subplots(1, 2, figsize=(5.6, 1.3), sharey=True)
