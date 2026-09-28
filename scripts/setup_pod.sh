@@ -7,6 +7,7 @@
 #         (Lambda: DATA=/lambda/nfs/<filesystem>/ftr)                            (default $W)
 #   HF    where the ~31 GB of public downloads go; local is fine, HF re-serves them in minutes  (default $W/hf)
 #   CUDA  cu118 (default; prebuilt flash-attn wheel, no compile) or cu121 (compiles flash-attn, ~30-60 min)
+#   EVAL_ONLY=1  skip the training downloads (released P checkpoint, RLDS demos); rollouts of existing merged checkpoints only
 #
 #   git clone https://github.com/ryan-racer/VLA_Alignment_Decay.git ~/ftr/repo && bash ~/ftr/repo/scripts/setup_pod.sh
 #   then:    source ~/ftr/env.sh && pytest tests/test_env.py tests/test_fixtures.py tests/test_parity.py -m gpu -v
@@ -16,6 +17,7 @@ set -euo pipefail
 W=${W:-$HOME/ftr}
 DATA=${DATA:-$W}
 CUDA=${CUDA:-cu118}
+EVAL_ONLY=${EVAL_ONLY:-0}
 REPO=${REPO:-$W/repo}
 HF=${HF:-$W/hf}
 OPENVLA_SHA=c8f03f4
@@ -30,9 +32,19 @@ mkdir -p "$W" "$HF" "$DATA"/{runs,data,logs}
 # ---- apt (EGL headless rendering, build tools, fork extras) ----------------------------------
 export DEBIAN_FRONTEND=noninteractive
 SUDO=$(command -v sudo || true)
-$SUDO apt-get update -qq
-$SUDO apt-get install -y -qq cmake ninja-build ffmpeg libegl1 libgl1 libglew-dev libosmesa6-dev \
+# sudo drops DEBIAN_FRONTEND; without these, needrestart opens a hidden dialog and apt hangs (Lambda)
+APT="$SUDO env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get"
+$APT update -qq
+$APT install -y -qq cmake ninja-build ffmpeg libegl1 libgl1 libglew-dev libosmesa6-dev \
     linux-libc-dev libmagickwand-dev imagemagick libfontconfig1-dev unzip git-lfs >/dev/null
+# Lambda images ship a headless NVIDIA driver without libnvidia-gl, so there is no NVIDIA EGL and robosuite falls back
+# to a Mesa device it cannot open. Install the GL library pinned to the running driver version.
+if command -v nvidia-smi >/dev/null && ! ldconfig -p | grep -q libEGL_nvidia; then
+    BR=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1 | cut -d. -f1)
+    VER=$(dpkg -l | awk '/nvidia-headless-[0-9]+-server/{print $3; exit}')   # the running driver's exact build
+    $APT install -y -qq libnvidia-gl-$BR-server${VER:+=$VER} >/dev/null
+    ldconfig -p | grep -q libEGL_nvidia || { echo "NVIDIA EGL still missing after installing libnvidia-gl-$BR-server"; exit 1; }
+fi
 
 # ---- Python 3.10 venv on local disk (uv fetches the interpreter if needed) -------------------
 export PATH=$HOME/.local/bin:$PATH
@@ -99,12 +111,14 @@ mkdir -p ~/.libero && cp $W/LIBERO-Safety/.libero_config/config.yaml ~/.libero/c
 # ---- public downloads (skipped when already present) -----------------------------------------------
 export HF_HOME=$HF
 HFDL="$PY -m huggingface_hub.commands.huggingface_cli download"
+if [ "$EVAL_ONLY" != 1 ]; then
 [ -f $HF/P/config.json ] || $HFDL openvla/openvla-7b-finetuned-libero-spatial --revision $P_REV --local-dir $HF/P
 # one call per suite: repeated --include flags keep only the last one; guard on a file, not a directory
 for SUITE in libero_spatial_no_noops libero_object_no_noops; do
     [ -f $HF/rlds/$SUITE/1.0.0/dataset_info.json ] || \
         $HFDL openvla/modified_libero_rlds --repo-type dataset --revision $RLDS_REV --include "$SUITE/*" --local-dir $HF/rlds
 done
+fi
 [ -d $HF/safety_assets ] || $HFDL LIBERO-Safety/libero_safety_assets --repo-type dataset --revision $ASSETS_REV --local-dir $HF/safety_assets
 # assets.zip has a top-level `assets/` folder (902,920 entries): unzip into the fork's libero/libero/ so it lands
 # at libero/libero/assets/. Redo each session if W is ephemeral. Detect by a known file, not a marker.
