@@ -33,17 +33,32 @@ mkdir -p "$W" "$HF" "$DATA"/{runs,data,logs}
 export DEBIAN_FRONTEND=noninteractive
 SUDO=$(command -v sudo || true)
 # sudo drops DEBIAN_FRONTEND; without these, needrestart opens a hidden dialog and apt hangs (Lambda)
-APT="$SUDO env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get"
+APT="$SUDO env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get -o DPkg::Lock::Timeout=600"
+# a fresh VM runs apt-daily / unattended-upgrades at boot; `apt-get update` does not wait for the lists lock
+while pgrep -x 'apt|apt-get|dpkg|unattended-upgr' >/dev/null; do echo "waiting for boot-time apt/dpkg to finish"; sleep 10; done
 $APT update -qq
 $APT install -y -qq cmake ninja-build ffmpeg libegl1 libgl1 libglew-dev libosmesa6-dev \
     linux-libc-dev libmagickwand-dev imagemagick libfontconfig1-dev unzip git-lfs >/dev/null
 # Lambda images ship a headless NVIDIA driver without libnvidia-gl, so there is no NVIDIA EGL and robosuite falls back
-# to a Mesa device it cannot open. Install the GL library pinned to the running driver version.
-if command -v nvidia-smi >/dev/null && ! ldconfig -p | grep -q libEGL_nvidia; then
-    BR=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1 | cut -d. -f1)
-    VER=$(dpkg -l | awk '/nvidia-headless-[0-9]+-server/{print $3; exit}')   # the running driver's exact build
-    $APT install -y -qq libnvidia-gl-$BR-server${VER:+=$VER} >/dev/null
-    ldconfig -p | grep -q libEGL_nvidia || { echo "NVIDIA EGL still missing after installing libnvidia-gl-$BR-server"; exit 1; }
+# to a Mesa device it cannot open. Install libnvidia-gl at EXACTLY the installed libnvidia-compute version (libnvidia-gl
+# depends on it with '='); never unpinned, which could swap the running driver's user-space libraries.
+# (grep without -q: under pipefail, grep -q exiting early can SIGPIPE ldconfig and read as "missing")
+if command -v nvidia-smi >/dev/null && ! ldconfig -p | grep libEGL_nvidia >/dev/null; then
+    DRV=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)   # e.g. 580.105.08
+    BR=${DRV%%.*} GL= VER=
+    for PKG in libnvidia-compute-$BR-server libnvidia-compute-$BR; do   # Lambda: the -server flavour
+        S_V=$(dpkg-query -W -f='${db:Status-Abbrev}${Version}' $PKG 2>/dev/null || true)
+        case $S_V in "ii "*) VER=${S_V#ii }; GL=${PKG/compute/gl}; break;; esac
+    done
+    if [ -z "$GL" ] || [ "${VER%%-*}" != "$DRV" ] || \
+       ! apt-cache madison $GL | awk -v v="$VER" '$3 == v {f = 1} END {exit !f}'; then
+        echo "no libnvidia-gl matching driver $DRV (gl pkg: ${GL:-none} ${VER:-?}); diagnostics:"
+        dpkg-query -W -f='${db:Status-Abbrev} ${Package} ${Version}\n' '*nvidia*' 2>/dev/null || true
+        [ -n "$GL" ] && apt-cache policy $GL || true
+        exit 1
+    fi
+    $APT install -y -qq --no-remove "$GL=$VER" >/dev/null
+    ldconfig -p | grep libEGL_nvidia >/dev/null || { echo "NVIDIA EGL still missing after installing $GL=$VER"; exit 1; }
 fi
 
 # ---- Python 3.10 venv on local disk (uv fetches the interpreter if needed) -------------------
@@ -112,12 +127,15 @@ mkdir -p ~/.libero && cp $W/LIBERO-Safety/.libero_config/config.yaml ~/.libero/c
 export HF_HOME=$HF
 HFDL="$PY -m huggingface_hub.commands.huggingface_cli download"
 if [ "$EVAL_ONLY" != 1 ]; then
-[ -f $HF/P/config.json ] || $HFDL openvla/openvla-7b-finetuned-libero-spatial --revision $P_REV --local-dir $HF/P
+[ -f $HF/P/model-00004-of-00004.safetensors ] || $HFDL openvla/openvla-7b-finetuned-libero-spatial --revision $P_REV --local-dir $HF/P
 # one call per suite: repeated --include flags keep only the last one; guard on a file, not a directory
 for SUITE in libero_spatial_no_noops libero_object_no_noops; do
     [ -f $HF/rlds/$SUITE/1.0.0/dataset_info.json ] || \
         $HFDL openvla/modified_libero_rlds --repo-type dataset --revision $RLDS_REV --include "$SUITE/*" --local-dir $HF/rlds
 done
+else   # rollouts still read P's config.json (norm stats) + tokenizer via ftr.codec.Codec() -> $FTR_P_DIR; no weights
+[ -f $HF/P/config.json ] || $HFDL openvla/openvla-7b-finetuned-libero-spatial --revision $P_REV --local-dir $HF/P \
+    --exclude "*.safetensors"
 fi
 [ -d $HF/safety_assets ] || $HFDL LIBERO-Safety/libero_safety_assets --repo-type dataset --revision $ASSETS_REV --local-dir $HF/safety_assets
 # assets.zip has a top-level `assets/` folder (902,920 entries): unzip into the fork's libero/libero/ so it lands
