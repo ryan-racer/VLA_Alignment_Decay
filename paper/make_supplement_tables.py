@@ -1,12 +1,13 @@
 """Per-task outcome tables for the supplement, straight from the per-episode Parquet records.
 
-    python paper/make_supplement_tables.py [--data /Users/ryan/code/ftr-review-data] > paper/supp_tables.tex
+    python paper/make_supplement_tables.py --data <results folder> > paper/supp_tables.tex
 
 Near-still = frac_steps_refused > 0.5; contact = any LIBERO-Safety violation; counts, not rates.
 """
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -124,13 +125,82 @@ def refusal(d: Path) -> str:
     return "\n".join(out)
 
 
+SEED0 = (("P", "$P$"), ("A_s0", "$A$ before"), ("A_s0_N50_p0", "$A$ after, $N{=}50$"), ("A_s0_N200_p0", "$A$ after"),
+         ("C_s0", "$C$ before"), ("C_s0_N200_p0", "$C$ after"))
+CLS = ("harmful", "benign", "blank")
+
+
+def offline(d: Path) -> str:
+    """Seed-0 first-frame and mid-trajectory refusal (headline criterion) and the pose-only criterion sweep."""
+    f = pd.read_csv(d / "s2data/figures/refusal_by_frame.csv")
+    f = f[~f.ckpt.str.contains("@")].pivot_table(index="ckpt", columns=["frame", "cls"], values="rate")
+    out = [r"\begin{tabular}{lcccccc}\toprule",
+           r" & \multicolumn{3}{c}{First frame} & \multicolumn{3}{c}{Mid-trajectory frame} \\",
+           r"\cmidrule(lr){2-4}\cmidrule(lr){5-7}",
+           r"Policy & harmful & benign & blank & harmful & benign & blank \\ \midrule"]
+    for ck, name in SEED0:
+        out.append(f"{name} & " + " & ".join(f"{f.loc[ck, (fr, c)]:.2f}" for fr in ("first", "mid") for c in CLS) + r" \\")
+    out.append(r"\bottomrule\end{tabular}")
+    return "\n".join(out)
+
+
+def criteria(d: Path) -> str:
+    """Largest first-frame difference between criteria over all 14 checkpoints x 3 classes."""
+    import json
+    oc = json.load(open(d / "s2data/figures/report.json"))["other_criteria"]
+    t = {k: pd.DataFrame(v).query("~ckpt.str.contains('@')", engine="python").set_index(["ckpt", "cls"]).rate for k, v in oc.items()}
+    head = pd.read_csv(d / "s2data/figures/refusal_rates.csv").query("~ckpt.str.contains('@')", engine="python").set_index(["ckpt", "cls"]).rate
+    pose = pd.concat([t["refused_k0"], t["refused_k1"], t["refused_k2"], t["roboshackles_noop"]], axis=1)
+    spread = (pose.max(axis=1) - pose.min(axis=1)).max()
+    grip = (t["refused_k1"] - head.loc[t["refused_k1"].index]).abs()
+    k = grip.idxmax()
+    return (f"\\newcommand{{\\suppCritSpread}}{{{spread:.2f}}}\n\\newcommand{{\\suppGripMax}}{{{grip.max():.2f}}}\n"
+            f"\\newcommand{{\\suppGripWhere}}{{seed-{k[0][3]} ${k[0][0]}$ {'after' if 'N200' in k[0] else 'before'}, {k[1]}}}\n"
+            f"\\newcommand{{\\suppGripN}}{{{int((grip > 0.005).sum())}}}")
+
+
+def decay(d: Path) -> str:
+    """First-frame refusal of the unmerged personalization adapter every 500 updates (seed 0)."""
+    r = pd.read_csv(d / "s2data/figures/refusal_rates.csv")
+    rows = []
+    for arm in ("A", "C"):
+        base = r[r.ckpt == f"{arm}_s0"].set_index("cls").rate
+        rows.append((arm, 0, base))
+        snap = r[r.ckpt.str.startswith(f"{arm}_s0+{arm}_s0_N200_p0@")].copy()
+        snap["u"] = snap.ckpt.str.split("@").str[1].astype(int)
+        for u, g in snap.groupby("u"):
+            rows.append((arm, u, g.set_index("cls").rate))
+        rows.append((arm, "merged", r[r.ckpt == f"{arm}_s0_N200_p0"].set_index("cls").rate))
+    ups = [u for a, u, _ in rows if a == "A"]
+    get = {(a, u): v for a, u, v in rows}
+    out = [r"\begin{tabular}{rcccccc}\toprule",
+           r" & \multicolumn{3}{c}{$A$} & \multicolumn{3}{c}{$C$} \\ \cmidrule(lr){2-4}\cmidrule(lr){5-7}",
+           r"Updates & harmful & benign & blank & harmful & benign & blank \\ \midrule"]
+    for u in ups:
+        out.append(f"{u} & " + " & ".join(f"{get[(a, u)][c]:.2f}" for a in ("A", "C") for c in CLS) + r" \\")
+    out.append(r"\bottomrule\end{tabular}")
+    return "\n".join(out)
+
+
+def contrast(d: Path) -> str:
+    """Same-frame instruction contrast and taught-label retention on A's training frames (seed 0), as macros."""
+    c = pd.read_csv(d / "s2data/figures/instruction_contrast.csv").set_index("ckpt")["mean"]
+    r = pd.read_csv(d / "s2data/figures/retention.csv").set_index(["ckpt", "cls"]).match_k1
+    m = {"CtrAb": c["A_s0"], "CtrAa": c["A_s0_N200_p0"], "CtrCb": c["C_s0"], "CtrCa": c["C_s0_N200_p0"], "CtrP": c["P"],
+         "RetAbH": r[("A_s0", "harmful")], "RetAaH": r[("A_s0_N200_p0", "harmful")],
+         "RetAbB": r[("A_s0", "benign")], "RetAaB": r[("A_s0_N200_p0", "benign")]}
+    return "\n".join(f"\\newcommand{{\\supp{k}}}{{{v:.2f}}}" for k, v in m.items())
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data", default="/Users/ryan/code/ftr-review-data")
+    ap.add_argument("--data", default=os.environ.get("FTR_DATA", "ftr-review-data"), help="results folder")
     d = Path(ap.parse_args().data)
-    for name, fn in (("study1", study1), ("study2", lambda x: study2(x)), ("study2b", study2b), ("utility", utility), ("refusal", refusal)):
-        src = fn(d / "s2data/eps") if name in ("study1",) else fn(d)
-        print(f"\\newcommand{{\\supp{name.replace('2b', 'Twob').replace('1', 'One').replace('2', 'Two')}}}{{%\n{src}}}\n")
+    for name, fn in (("studyOne", study1), ("studyTwo", study2), ("studyTwob", study2b), ("utility", utility),
+                     ("refusal", refusal), ("offline", offline), ("decay", decay)):
+        src = fn(d / "s2data/eps") if name == "studyOne" else fn(d)
+        print(f"\\newcommand{{\\supp{name}}}{{%\n{src}}}\n")
+    print(criteria(d) + "\n" + contrast(d))
 
 
 if __name__ == "__main__":
