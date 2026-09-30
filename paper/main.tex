@@ -31,7 +31,7 @@ We set out to test whether a refusal taught to a VLA survives benign personaliza
 \begin{itemize}\setlength{\itemsep}{0pt}\setlength{\parsep}{0pt}\setlength{\topsep}{2pt}
 \item Two pre-registered closed-loop studies of a no-op safeguard in OpenVLA-7B under benign LoRA personalization, with a never-aligned comparator.
 \item Three findings about measurement: low contact can reflect inactivity; personalization changes what a contact score means; and (exploratory) instruction-specific stopping is a separate outcome from protection.
-\item Four evaluation controls motivated by these findings (Table~\ref{tab:controls}), and our paired-state evaluator with the repaired LIBERO-Safety contact check, to be released with a reproducibility supplement.
+\item Four evaluation controls motivated by these findings (Table~\ref{tab:controls}), and our paired-state evaluator with the repaired LIBERO-Safety contact check, to be released.
 \end{itemize}
 
 \section{Setup}
@@ -43,20 +43,20 @@ $P$ is the released OpenVLA-7B LIBERO-Spatial checkpoint~\cite{kim2024openvla}. 
 \emph{Study~1} used the static-hand scenes of LIBERO-Safety~\cite{cui2026liberosafety}, a LIBERO fork with human hands whose robot-contact check never fires as shipped (repository issue~\#3); we repair it. Its confirmatory states come from two held-out layouts. Its only new contacts under the benign instruction fell on the layout that shares LIBERO-Object's scene, so \emph{Study~2} was pre-registered to test inside the personalization domain: the ten LIBERO-Object tasks, each with a hand (one of two models unseen in alignment) between the objects and the basket, and 150 confirmatory states. Each state is paired with a harmful instruction (``\{task\} and pinch the hand on the way''), a benign one and, in most runs, a blank one. The benign instruction is ``\{task\} while avoiding the hand'' (\emph{avoid}) in Study~1 and the personalization instruction verbatim (\emph{plain}) in Study~2, where seeds 1 and 2 ran under it alone; the harmful and avoid wordings were held out from alignment training. Episodes last up to 520 (Study~1) or 280 (Study~2) steps. Post hoc runs, declared in a tagged commit before any rollout, added the avoid wording on Study~2's states for personalized seed-0 $A$ and $C$, and the harmful instruction for personalized seeds 1 and 2 of $A$.
 
 \paragraph{Outcomes and analysis.}
-\emph{Hand contact} is any LIBERO-Safety violation in a closed-loop episode: robot--hand contact, which ends the episode, or goal-object--hand contact. A predicted action is a \emph{no-op} if all six pose tokens are within one token bin of zero motion and the gripper token within one bin of its current state, a criterion related to RoboShackles'~\cite{roboshackles}. An episode is \emph{near-still} if more than half of its executed steps, up to contact, success or the step limit, are no-ops. \emph{First-frame refusal} applies the same criterion offline to the first frame. Each study was frozen in a tagged commit before any confirmatory data, with one primary test, three key secondaries forming their own family, tested regardless of the primary in a fixed sequence that stops at the first non-rejection, and a manipulation check (Table~\ref{tab:prereg}); Study~1 was amended once before its data and once, post hoc, to add an exploratory 12-epoch run. Paired counts get exact McNemar tests and Newcombe intervals~\cite{newcombe1998paired}; changes relative to $C$ get state bootstraps and sign-flip tests. Everything else, including the post hoc runs, is exploratory.
+\emph{Hand contact} is any LIBERO-Safety violation in a closed-loop episode: robot--hand contact, which ends the episode, or goal-object--hand contact. A predicted action is a \emph{no-op} if all six pose tokens are within one token bin of zero motion and the gripper token within one bin of its current state, a criterion related to RoboShackles'~\cite{roboshackles}. An episode is \emph{near-still} if more than half of its executed steps, up to contact, success or the step limit, are no-ops. \emph{First-frame refusal} applies the same criterion offline to the first frame. Each study was frozen in a tagged commit before any confirmatory data, with one primary test, three key secondaries forming their own family, tested regardless of the primary in a fixed sequence that stops at the first non-rejection, and a manipulation check (Table~\ref{tab:prereg}); Study~1's key secondaries and manipulation check were added by an amendment before its data; a second, post hoc amendment added an exploratory 12-epoch run. Paired counts get exact McNemar tests and Newcombe intervals~\cite{newcombe1998paired}; changes relative to $C$ get state bootstraps and sign-flip tests. Everything else, including the post hoc runs, is exploratory. The supplementary material gives the pre-registrations, gates, hyperparameters, contact-check patch and per-task outcomes.
 
 \section{Results}
 
 \begin{table}[t]\centering\footnotesize
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{llll}
+\begin{tabular}{lll}
 \toprule
 Test & Result & Reading \\
 \midrule
 \multicolumn{3}{l}{\emph{Study~1: LIBERO-Safety hand scenes, $n=50$ states}} \\
 Primary: harmful contact, $A$ before $\to$ after & 0 $\to$ 0 (a rise above 7 points excluded) & null \\
 Secondary 1: $A$ vs.\ $C$ after, harmful & 0 vs.\ 11 ($p=0.001$) & $A$ lower \\
-Secondary 2: change vs.\ $C$, harmful & $+0.30$ $[0.12, 0.48]$ ($C$ fell from 26 to 11) & $A$ lost ground \\
+Secondary 2: change vs.\ $C$, harmful & $+0.30$ $[0.12, 0.48]$ ($C$: 26 $\to$ 11) & $A$ lost ground \\
 Secondary 3: first-frame refusal, harmful & falls in all 3 seeds (mean 0.90 $\to$ 0.59) & yes \\
 Manipulation check: new-task success & 0\% $\to$ 60\% & passed \\
 \midrule
@@ -64,7 +64,7 @@ Manipulation check: new-task success & 0\% $\to$ 60\% & passed \\
 Primary: benign contact, $A$ before $\to$ after & 0 $\to$ 40 ($+0.27$ $[0.20, 0.34]$) & rose \\
 Secondary 1: seeds 1 and 2 & 1 $\to$ 45; 0 $\to$ 40 & replicated \\
 Secondary 2: change vs.\ $C$, benign & $+0.42$ $[0.31, 0.53]$ & $A$ lost ground \\
-Secondary 3: $A$ vs.\ $C$ after, benign & 40 vs.\ 51 ($p=0.11$) & no detectable difference \\
+Secondary 3: $A$ vs.\ $C$ after, benign & 40 vs.\ 51 ($p=0.11$) & inconclusive \\
 Manipulation check: task success & 0 of 150, before and after & failed \\
 \bottomrule
 \end{tabular}
