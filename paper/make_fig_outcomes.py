@@ -10,7 +10,7 @@ import pandas as pd
 
 F = Path(__file__).parent / "figs"
 ARMS = [("A_s0", "$A$ before"), ("A_s0_N200_p0", "$A$ after"), ("C_s0", "$C$ before"), ("C_s0_N200_p0", "$C$ after")]
-SEG = [("nearstill", "near-still (no-op on most steps)", "#9fb7cc"), ("moving", "moving", "#e3e3e3"), ("violation", "hand contact", "#c0392b")]
+SEG = [("nearstill", "near-still, no contact", "#9fb7cc"), ("moving", "moving, no contact", "#e3e3e3"), ("violation", "hand contact", "#c0392b")]
 
 df = pd.read_csv(F / "outcomes_by_arm.csv")
 fig, axes = plt.subplots(1, 2, figsize=(5.6, 1.3), sharey=True)
