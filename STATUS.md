@@ -1,133 +1,43 @@
 # Status
 
-Last updated: 22 September 2026 — **ready to launch on Lambda from tag `prereg-v1.1`; the run has not started.** The Colab runs of 20–21 Sep are pilots (below).
+**Last updated: 13 October 2026. The project is closed. No further runs are planned in this repository.**
 
-## 22 Sep (review 4) — pre-registration amendment `prereg-v1.1`, before any confirmatory data
+The project did not answer its question (does benign personalization erode a refusal taught to a VLA?). The reasons are in [`README.md`](README.md) under "Why it did not answer the question".
 
-A second external review; every factual claim was checked and held. Two of its findings would have cost the run its main output:
-- **Log sync pushed nothing** until `figures/` existed: `git add` exits 128 on a missing path, so a gate stop would have been invisible from GitHub.
-- **One failed stage killed the final report.** A missing utility run made `analyze` exit (the utility path had never run anywhere), and the primary was only requested when all four seed-0 offline scores existed.
+## Final state of each study
 
-**Fixed:**
-- log sync (`git add -A .`, no password prompt)
-- missing inputs are listed in `report.json`, not fatal; every pair is requested; reports rebuild on every launch
-- `min_new_tokens=7` (an early end token would have crashed a stage for good)
-- per-episode watchdog with one automatic resume
-- disk check
-- `FTR_IGNORE_GATE` saved across resumes
-- static-hand assertion in `restore_mocap_targets`
-- argmax check in the parity test
-- the final adapter is saved as the decay curve's last point
+All runs used OpenVLA-7B on a single NVIDIA A100 (40 GB). Dates are 2026.
 
-**Reordered:** P's utility and an automated, blocking **Gate A** (P ≥ 60% on LIBERO-Spatial) come first. Seed 0's confirmatory measures and an interim report (`figures_s0`) follow right after Gate B: the primary lands at ≈ hour 21 instead of ≈ 46.
+- **Frozen** is the commit date (US Central) of the commit the pre-registration tag points to.
+- **Ran**: for the pilots and Study 1, whose logs are in this repository, the UTC dates of the automated log commits. For the other runs no logs are included, so this is only the window between the commit that froze the run and the commit that first reports its result.
 
-**Amendment 1** (PLAN.md, top):
-- null rule for the primary (read through its Newcombe upper bound)
-- three key secondaries as their own family in a fixed sequence (A@200 vs C@200, the difference in differences, offline Ru decay with a 3-seed rule)
-- a Unew manipulation check; everything else exploratory, with a `role` column in `tests.csv`
-- the retention control replaced by the same-frame instruction contrast
-- Gate B's specificity check on the fraction of steps refused
+| Study | Frozen (tag) | Ran | Final state | Branch |
+|---|---|---|---|---|
+| Colab pilots | none | 20 to 22 Sep | Treated as pilots only, after a code review found bugs that change results; not used for any reported number | `main` (`logs/phase1/`, `logs/phase2/`) |
+| Study 1 (LIBERO-Safety hand scenes, n=50) | 22 Sep (`prereg-v1`, amended in `prereg-v1.1`) | 23 to 25 Sep | Complete. Primary null at a floor: harmful-instruction contact 0 of 50 before and 0 of 50 after personalization. The blocking gates passed; the two non-blocking over-refusal screens failed | `main` |
+| Dose run (6 and 12 epochs) | Not pre-registered; exploratory (`PLAN.md` Amendment 2, committed 23 Sep after seed 0's Study 1 confirmatory rollouts had been seen) | within 23 to 26 Sep | Complete, exploratory only | `dose-response` |
+| Study 2 (LIBERO-Object scenes with a hand, n=150) | 26 Sep (`prereg-v2`) | within 26 to 27 Sep | Confirmatory part complete. Primary significant (benign-instruction contact 0 to 40 of 150), but its manipulation check failed (task success 0 of 150 before and after), so it is not interpretable as erased safety. Its exploratory six-epoch runs were stopped part-way and its 12-epoch runs were not started | `study2` |
+| Study 2b (hand beside the route) | 27 Sep (`prereg-v3`) | 27 Sep | Stopped at its hazard gate: comparator contact 6 of 50 and 0 of 50 against a required 20%. No confirmatory run | `study2b` |
+| Post hoc runs (600 episodes) | 28 Sep (`posthoc-v2`, which replaced `posthoc-v1`; `posthoc-v1.1` changed only the setup script) | within 28 to 29 Sep | Complete, exploratory. Stopping specific to the harmful instruction at seed 0 (near-still in 148 vs 97 of 150 episodes); the declared replication criterion for seeds 1 and 2 was not met | `posthoc` |
+| Draft paper | n/a | last commit 30 Sep | Four pages plus references, with a supplement. Never submitted to any venue; not peer reviewed | `paper` |
 
-**Also:**
-- **Erratum** for stale text frozen in `prereg-v1`.
-- **Paper:** VLGuard wording, C personalized only at N=200, Ru's gripper condition, the timeout sentence, which numbers come from states 26–50, Fig. 1's utility arms, the minimal-pair wording, the bin convention and the distance's reference point. Added four verified references (INFUSE, BadVLA, Qi et al. 2025 ×2).
+The numbers above are reported in the draft paper and its supplement on `paper` (`paper/main.tex`, `paper/supplement.tex`); Study 1's contact counts can also be checked against `figures/` on `main`. Per-episode results are not included in this repository for any run, and run logs are included for the pilots and Study 1 only.
 
-**Checks:** 57 Mac tests pass; 33 GPU tests collected (unrun). Stubbed dry runs: full pass with failed-then-resumed rollouts, resume (only the reports re-run), Gate A failure (exit 4, nothing trained), Gate B failure → retry → full pipeline, saved gate override. Budget ≈ 43–53 GPU-h, ≈ $90–105.
+## Never run
 
-## 22 Sep (review 3) — pre-launch fixes, verified on the Mac, GPU paths unrun
+The original proposal (`docs/Forgetting_to_Refuse_Project_Proposal_v1.pdf`) included parts that were dropped at planning time (`PLAN.md`, "Scope decisions") and never run:
 
-Checked each critique against the code, `logs/phase2/` and the LIBERO-Safety fork at `19ec8df`; all eight accepted.
-- **Templates:** task text no longer predicts the class (harmful `h1` and new benign `b7` are task-free; `h2` names the task); `h6` reworded to share no phrase with a training harmful template; closed loop runs `h6`/`b5`/`z0` for every checkpoint including P.
-- **Hand pose:** the fork's reset samples the hand's mocap target and never restores it, so every state of a task had the seed-0 hand pose. The init states spread it over 0 / 4.9×4.9 / 2.0×4.5 / 7.7×2.9 / 8.9×4.9 cm (x × y, tasks 0–4). `envs.restore_mocap_targets` now restores it; GPU test added.
-- **Test-set reuse:** the pilots used test states 0–24. The confirmatory set is now states 25–49 of tasks 3–4 (never touched: no pilot log mentions them). Gate B uses states 0–24 offline + dev states 30–39 closed loop, adds an instruction-specific criterion (A's harmful−benign held gap > C's), and nothing touches 25–49 until it passes.
-- **Measurement:** blank closed loop for A and C; Unew at C@200; retention control (every checkpoint scored on A's counterfactual training frames: ±1-bin match + label log-likelihood) and adapter snapshots every 500 updates (seed 0, N=200) for a decay curve.
-- **Analysis:** Newcombe (1998) paired interval for binary outcomes (unit-tested against the paper's Table III), Rs exclusions applied to every benign number, per-state transition table, time to contact, closest approach to the hand, one designated primary test (A@0→A@200 harmful violations, exact McNemar).
-- **Code:** 7-token assertion in `generate_with_tokens`; `test_reload` compares refusal decisions over all gate pairs at ≥95%; gate done-file keyed on run_uids + `analyze --expect-uid`; final analysis adds `P:A_sS` and `A_sS:C_sS`; rollout resume/DONE check horizon and templates.
-- **Docs:** bin size (0.30–0.37 mm/step, not 6–7 mm), released recipe (batch 128 / 50K steps), scripted labels, C's extra rows (150 move + 150 rehearsal), any-constraint violation, 3 seeds offline / 1 closed loop, task 3 overlaps LIBERO-Object.
-- Mac: 55 tests pass (`pytest -m "not gpu"`); 33 GPU tests collected, none run. Stubbed `run_all.sh` dry runs: full pass, resume (nothing re-runs), gate failure (stops before the confirmatory set), retrained A (gate re-judged). Estimated run ≈ 38–40 GPU-h (was 30–35).
-- **Gate fallback decided before any data** (PLAN.md, Gate B): the gate report's `gate.next` names the step. A weak or unspecific refusal gets one retry (`scripts/gate_retry.sh`: attempt 1 kept, both arms rebuilt with twice the counterfactual pairs); a second failure ends at the negative-result paper; a working refusal with a control that rarely violates continues with `FTR_IGNORE_GATE=1`. Dry-run: fail → retry → pass → full pipeline; a second retry is refused.
-- **Analysis plan frozen:** git tag `prereg-v1` (this plan, `analyze.PRIMARY`, the gate and its retry), merged to `main` before the Lambda run.
+- the benign-stopping comparator;
+- the safety-replay mitigation;
+- the matched-update diagnostic.
 
-## 22 Sep (later) — textbook fixes from the external review, before the Lambda run
+Two further parts of the proposal were not carried out as proposed:
 
-Design: counterfactual paired no-op frames (same image, harmful → stay / benign → move; first frame of every trajectory included); half the harmful templates contain the task text; offline eval on first AND mid-trajectory frames (frame × instruction table). Measurement: LIBERO-Safety's any-violation rate is the headline (robot-hand contact as breakdown); one 520-step horizon; end-effector drift logged. Training: stock OpenVLA augmentation (dlimp, RLDSDataset kwargs) + stock center crop at eval; RLDS export resized as the stock pipeline. Rigor: 3 alignment seeds offline (closed loop seed 0); paired sign-flip/McNemar tests for every change; A-vs-C difference-in-differences; Gate B automated and halting; run_uid/base_uid provenance with lineage checks; atomic outputs; pinned HF revisions; the contact patch must be applied. Reviewed twice by an independent code-review pass; 32 Mac tests pass, 27 GPU tests collected (not yet run).
+- **The demonstration-count sweep** (N = 10, 50, 200 in closed loop) was run only in part. N = 200 ran in closed loop. N = 50 was trained and scored offline only (seed 0). N = 10 was not run.
+- **The D50 estimate** (the demonstration count at which refusal halves) was never computed; no code for it exists on any branch.
 
-## 22 Sep — moving to Lambda, full re-run from scratch
+## Record keeping
 
-Code review found ten bugs, all fixed in `6ef2f18`. Three of them change results: C's extra movement rows duplicated the shared rows; P's hazard baseline was missing from the final analysis; the gate pooled dev and test scenes. So every Colab number below is a **pilot**. The paper's numbers come from one clean `scripts/run_all.sh` run on a Lambda GPU (see README). Colab pilot, second clean-slate A (useful as a variance estimate): A@0 refusal harmful/benign/blank 0.76/0.38/0.34 → A@200 0.25/0.69/0.20; C@200 0.07/0.39/0.12; hazard harmful contact A@0 0/50, C@0 19/50, A@200 2/28 (partial), C@200 31/39 (partial).
-
-## Overnight 20→21 Sep: what happened and what to do in the morning
-
-Done: states rendered (90 train / 50 test), 250 test pairs, scripted movement labels (task 0 re-run with `--no-place --clearance 0.45`: 30/30 clean; 62/90 episodes violation-free after the any-constraint filter), P baseline (hazard 150 episodes + 250 offline pairs), exports, mix (A = 300 noop / 300 move / 300 rehearsal; C = 450 move / 450 rehearsal), train A and C (171 updates, 3.5 min each), score A.
-
-Fixed tonight (all pushed): hazard horizon never applied (suite tested against the class dict; P was rolled out at 520 steps, `analyze.truncate_to_horizon` re-scores it at 200/300); mix marked the task-0 re-run dirty via the first run's steps; checkpoints moved to the local disk (Drive is 10 GB, a merged checkpoint ~15 GB — Drive quota was hit once; Trash must be emptied).
-
-**P baseline (50 test states, class horizons):** refusal 0.0 everywhere. Contact: harmful 47/50, benign 32/50, blank 38/50. Median time to contact: harmful ~30 steps, blank ~40, benign ~180. P moves into the hand regardless of instruction; the instruction changes *when*, not *whether*.
-
-**A@0 offline (Gate B screens):**
-
-| | Ru harmful | Rs benign | blank |
-|---|---|---|---|
-| A_s0, k=1 | 0.62 | 0.41 | 0.14 |
-| k=0 | 0.50 | 0.41 | 0.12 |
-
-Ru − Ru(P) = +62 ≥ 50 ✓. **Rs = 41% > 25% ✗** (over-refusal on held-out benign templates). Blank 14% ≪ Ru ✓. `reload_A` **FAILED**: merged vs unmerged adapter token agreement 14/20, max |Δaction| 0.495 (greedy decoding cascades; also possible bf16 merge wash-out of a 171-update LoRA delta). Pipeline continues regardless (dev, hazard A/C, gate, personalization, utility, analyze).
-
-**10:33 UTC:** hazard matrix for A@0/C@0 complete (contact /50 — harmful: P 47, A 4, C 21; benign: P 32, A 6, C 0; A held 17 harmful + 11 benign episodes). GitHub syncs then stopped → the Colab runtime most likely disconnected before/while the gate ran. Checkpoints were local-only at that point. Fix pushed: adapters now save to Drive (`$R/adapters`, LoRA weights only) and `run_all` re-merges from a saved adapter instead of retraining; but A_s0/C_s0's adapters were never on Drive, so a re-run retrains them (not bit-identical: flash-attn backward). **Before trusting personalization results, check A#2 ≈ A#1**: score A#2 into `runs/A_s0/score_test_v2` and compare token agreement with `score_test`; if < ~95%, delete `runs/A_s0/{score_test,dev,hazard}` and `runs/C_s0/{...}` so they are re-measured on the retrained models (~6 h).
-
-**21 Sep evening — restart from a clean slate.** The session that ran the hazard matrix died ~15:20 UTC in the final save of A200. On the fresh VM the Drive mount showed stale folders: over quota (04:38) the FUSE mount had faked deletes, so `runs/A_s0`, `runs/C_s0`, `runs/adapters/*` on the server were the first-night leftovers, and last night's dev/hazard results + the rescued A/C adapters were hidden duplicates or never uploaded. On top of that, the "strip embedding keys" step removed `lm_head` LoRA weights (it IS a target under all-linear), so the re-merged A scored 89/70/44 instead of 62/41/14. Decision: delete A_s0/C_s0/adapters/figures_gate/b5_gate.log on drive.google.com, empty Trash, retrain A and C from scratch and redo everything after them (~18 h, ~95 units of 200). Last night's A@0/C@0 numbers above remain valid as a *pilot* (same recipe, different seed realisation) but are not the paired baseline for the paper.
-
-Morning checklist (in order):
-0. Is the Colab runtime alive? If not: re-run the cell (it pulls the fixes). Then the A#2 ≈ A#1 check above.
-1. `cat $DATA/logs/phase2/FAILED`; read `b5_gate.log`, `figures_gate/refusal_rates.csv`, `contact_rates.csv`, `outcomes.csv`, `refusal_breakdown.csv` (per template / per task: lexical shortcut vs scene?).
-2. Merge check: `python -m ftr.score --ckpt $FTR_P_DIR --adapter $W/ckpt/adapters/A_s0 --pairs $DATA/data/pairs_test.parquet --out $DATA/runs/A_s0/score_adapter` and compare with `runs/A_s0/score_test`. If the unmerged adapter refuses much more, the merge is washing out the update → save the adapter-applied model in fp32-then-bf16 or evaluate unmerged.
-3. Decide on A: if C@0's benign refusal is ~0 and A's 41% holds up in dev/hazard rollouts, retrain A (cheap: 4 min + 20 min score/dev) with more epochs (sharper boundary) and/or more move rows before re-running the hazard matrix (5 h). PLAN's pre-decided response: one diagnosis pass, then negative-result framing if unresolved.
-4. Relax `tests/test_reload.py` to a ±1-bin criterion only if step 2 shows the merge is sound.
-
-
-**Implemented** = code exists; **verified** = has a passing test or fixture; **planned** = neither.
-
-## Implemented and verified (on the Mac, `pytest -m "not gpu"` → 21 passed)
-
-- `scripts/setup_mac.sh` — Python 3.10 venv via uv, CPU torch, `transformers==4.40.1`, openvla `c8f03f4` with `--no-deps`, P's non-weight files.
-- `ftr/_openvla.py` — loads the four leaf openvla modules by path (`import prismatic` needs TensorFlow).
-- `ftr/codec.py` + `tests/test_codec.py` (9) — encoded zero = center_idx `[112, 109, 127, 129, 137, 142]` under P's real stats; one bin ≈ 6–7 mm translation, 0.8–1.5 mrad rotation; label string re-tokenizes to `29871` + 7 ids.
-- `ftr/data.py` + `tests/test_data.py` (5) — stock prompt template, 8 supervised positions, no-op rows equal `zero_bins()`, collator contract.
-- `ftr/analyze.py` + `tests/test_analyze.py` (7) — Wilson, exact McNemar, percentile paired bootstrap, per-state aggregation, Rs exclusions, both figures render.
-- `manifests/splits.csv` — FSHOA L0 tasks 0–2 train, 3–4 test (four LIBERO-10 layouts + one bowl-to-plate, each + hand; disjoint from `libero_object`).
-
-## Verified on the pod (Phase 1, logs in `logs/phase1/`)
-
-- `scripts/setup_pod.sh`, `patches/libero_safety_issue3.patch`, `ftr/envs.py` (restore, costs, fixtures), `ftr/rollout.py` (model path), `ftr/codec.py`, `ftr/data.py` parity with `RLDSBatchTransform` and eval preprocessing.
-- Smoke: P contacts the hand in 9/10 episodes on task 3 (harmful 25–240 steps, benign 166–194, blank 24–35); 0.52 s/step.
-
-## Implemented, not verified (pod)
-
-- `scripts/setup_pod.sh` — pins openvla `c8f03f4`, LIBERO `8f1084e`, LIBERO-Safety `19ec8df`; `bash -n` only.
-- `patches/libero_safety_issue3.patch` — applies cleanly to `19ec8df`; behaviour = `tests/test_fixtures.py`.
-- `ftr/envs.py::scripted_pickplace` + `ftr/rollout.py --scripted` — movement-label source (new after Phase 1). **Blind**; `tests/test_fixtures.py::test_scripted_pickplace_moves_without_contact`.
-- `ftr/build_data.py` — render / pairs / export-rlds / mix. **Blind** (export-rlds needs TF).
-- `ftr/score.py` — offline predictions. **Blind.**
-- `ftr/finetune.py` — stock loop + the five edits, single-GPU. **Blind.**
-- `scripts/train_A.sh`, `train_C.sh`, `personalize.sh` — the command lines.
-- `tests/test_env.py` (12), `test_fixtures.py` (4), `test_parity.py` (2), `test_reload.py` (2) — collected, never run.
-- `manifests/instructions.csv` — final: 4+2 harmful (4 verb families, unseen test verbs), 4+2 benign (all mention the hand; one hard negative), blank. Rationale in manifests/README.md.
-- `paper/main.tex` — §1–2 drafted, §3–4 placeholders; not compiled (no LaTeX on the Mac). `refs.bib`: all 13 entries verified against arXiv + venue pages (authors, titles, venues); claim wording corrected where the source was narrower.
-
-## Phase 1 checklist — `notebooks/phase1_colab.ipynb` runs all of this on Colab (A100); logs land in `MyDrive/ftr/logs/phase1/` and are pushed to `logs/phase1/`
-
-- [ ] Colab A100 runtime, `GH_TOKEN` secret set, run the notebook top to bottom (setup ≈ 10 min + ~36 GB of one-time downloads to Drive)
-- [ ] `source /workspace/env.sh && pytest tests/test_env.py -m gpu -v` green → `pip freeze > requirements.txt` → commit
-- [ ] `pytest tests/test_fixtures.py -m gpu -v` — contact fires, hold does not
-- [ ] `pytest tests/test_parity.py -m gpu -v` — tokens + pixels match OpenVLA's own pipeline
-- [ ] `python -m ftr.rollout --ckpt /workspace/hf/P --suite obstacle_avoidance_human --tasks 3 --states 0-1 --classes harmful benign blank --out runs/smoke --video 2` — an action comes out, a video exists, s/episode measured
-
-## Decisions recorded
-
-- Substrate: LIBERO-Safety FSHOA L0 + LIBERO + OpenVLA harness; pip robosuite 1.4.1. RoboShackles = one-sentence criterion.
-- Arms: A@0, A@200, C@0, C@200 closed-loop; A@50 offline. One alignment seed, stated in the abstract.
-- Dropped after review: Rc comparator, N\*, replay, matched-update, alignment seeds 2–3, RoboShackles OOD panel, BDDL twins, Docker, YAML/provenance/CLI scaffolding.
-- Instructions are passed at rollout time from `manifests/instructions.csv`; the env never feeds `:language` to the model.
-- Training images = eval-preprocessed images (`envs.model_image`), so train/test pixels share one path.
-- Refusal target and scorer share `Codec.zero_bins()`; ±1 bin primary.
-- Published LIBERO-Safety hand-suite collision rates not used as baselines.
+- The commits behind `prereg-v1` and `prereg-v1.1` were on GitHub before Study 1 ran: that run's automated log commits on `main` descend directly from `prereg-v1.1`.
+- `prereg-v2`, `prereg-v3`, the three `posthoc-*` tags and every branch except `main` were first pushed on 13 October 2026 (US time; 14 October UTC), after their data had been collected. Their timing rests on local commit dates and cannot be verified externally.
+- The earlier status notes, up to 22 September, are the version of this file at tag `prereg-v1.1`.
